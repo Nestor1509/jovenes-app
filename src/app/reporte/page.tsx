@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { invalidate } from "@/lib/cache";
 import { Container, Card, Title, Subtitle, Button, Input, PageFade } from "@/components/ui";
-import { Clock3, BookOpen, HeartHandshake } from "lucide-react";
+import { Clock3, BookOpen, HeartHandshake, PencilLine, CheckCircle2 } from "lucide-react";
 
 function todayISO() {
   const d = new Date();
@@ -42,23 +41,31 @@ function traducirError(msg: string) {
   return "Ocurrió un error. Intenta de nuevo.";
 }
 
-export default function ReportePage() {
-  const [loading, setLoading] = useState(true);
-  const [reportDate, setReportDate] = useState(todayISO());
+type ExistingReport = {
+  bible_minutes: number;
+  prayer_minutes: number;
+};
 
-  // 👇 ahora son strings para UX (se pueden borrar)
-  const [bibleH, setBibleH] = useState<string>("");
-  const [bibleM, setBibleM] = useState<string>("");
-  const [prayerH, setPrayerH] = useState<string>("");
-  const [prayerM, setPrayerM] = useState<string>("");
+type Mode = "loading" | "new" | "askEdit" | "editing" | "done";
+
+export default function ReportePage() {
+  const today = useMemo(() => todayISO(), []);
+  const dateKey = today;
+
+  const [mode, setMode] = useState<Mode>("loading");
+  const [existing, setExisting] = useState<ExistingReport | null>(null);
+
+  // UX: por defecto mostramos 0 (limpio)
+  const [bibleH, setBibleH] = useState<string>("0");
+  const [bibleM, setBibleM] = useState<string>("0");
+  const [prayerH, setPrayerH] = useState<string>("0");
+  const [prayerM, setPrayerM] = useState<string>("0");
 
   const [msg, setMsg] = useState("");
 
-  const dateKey = useMemo(() => reportDate, [reportDate]);
-
   useEffect(() => {
     (async () => {
-      setLoading(true);
+      setMode("loading");
       setMsg("");
 
       const { data: sess } = await supabase.auth.getSession();
@@ -70,28 +77,44 @@ export default function ReportePage() {
       const { data, error } = await supabase
         .from("reports")
         .select("bible_minutes, prayer_minutes")
+        .eq("user_id", sess.session.user.id)
         .eq("report_date", dateKey)
         .maybeSingle();
 
       if (!error && data) {
-        const b = fromMinutes(data.bible_minutes ?? 0);
-        const p = fromMinutes(data.prayer_minutes ?? 0);
-
-        // si es 0, dejamos vacío para que sea agradable
-        setBibleH(b.h === 0 ? "" : String(b.h));
-        setBibleM(b.m === 0 ? "" : String(b.m));
-        setPrayerH(p.h === 0 ? "" : String(p.h));
-        setPrayerM(p.m === 0 ? "" : String(p.m));
+        setExisting({
+          bible_minutes: data.bible_minutes ?? 0,
+          prayer_minutes: data.prayer_minutes ?? 0,
+        });
+        // Preguntamos si quiere editar; mientras tanto no mostramos el formulario.
+        setMode("askEdit");
+        // form limpio por si decide crear/editar luego
+        setBibleH("0");
+        setBibleM("0");
+        setPrayerH("0");
+        setPrayerM("0");
       } else {
-        setBibleH("");
-        setBibleM("");
-        setPrayerH("");
-        setPrayerM("");
+        // No hay reporte hoy: formulario limpio (0)
+        setExisting(null);
+        setMode("new");
+        setBibleH("0");
+        setBibleM("0");
+        setPrayerH("0");
+        setPrayerM("0");
       }
-
-      setLoading(false);
     })();
   }, [dateKey]);
+
+  const onlyDigits = (v: string) => v.replace(/[^\d]/g, "");
+
+  function loadExistingIntoForm() {
+    const b = fromMinutes(existing?.bible_minutes ?? 0);
+    const p = fromMinutes(existing?.prayer_minutes ?? 0);
+    setBibleH(String(b.h));
+    setBibleM(String(b.m));
+    setPrayerH(String(p.h));
+    setPrayerM(String(p.m));
+  }
 
   async function save() {
     setMsg("");
@@ -106,19 +129,74 @@ export default function ReportePage() {
     const { error } = await supabase.from("reports").upsert(
       {
         user_id: user.id,
-        report_date: reportDate,
+        report_date: today,
         bible_minutes,
         prayer_minutes,
       },
       { onConflict: "user_id,report_date" }
     );
 
-    if (error) setMsg(traducirError(error.message));
-    else setMsg("✅ Guardado correctamente");
+    if (error) {
+      setMsg(traducirError(error.message));
+      return;
+    }
+
+    setExisting({ bible_minutes, prayer_minutes });
+    setMode("done");
+    setMsg("✅ Guardado correctamente");
   }
 
-  // helpers para que solo entren números
-  const onlyDigits = (v: string) => v.replace(/[^\d]/g, "");
+  const Summary = () => {
+    const b = fromMinutes(existing?.bible_minutes ?? 0);
+    const p = fromMinutes(existing?.prayer_minutes ?? 0);
+
+    return (
+      <div className="grid gap-3">
+        <div className="flex items-center gap-2 text-emerald-200/90">
+          <CheckCircle2 size={18} />
+          <div className="font-semibold">Ya reportaste hoy</div>
+        </div>
+
+        <div className="grid gap-2 text-sm text-white/70">
+          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+            <span className="flex items-center gap-2">
+              <BookOpen size={16} className="opacity-80" /> Lectura bíblica
+            </span>
+            <span className="font-semibold text-white">
+              {b.h}h {b.m}m
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+            <span className="flex items-center gap-2">
+              <HeartHandshake size={16} className="opacity-80" /> Oración
+            </span>
+            <span className="font-semibold text-white">
+              {p.h}h {p.m}m
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              loadExistingIntoForm();
+              setMode("editing");
+              setMsg("");
+            }}
+          >
+            <PencilLine size={16} />
+            Editar reporte
+          </Button>
+        </div>
+
+        <div className="text-xs text-white/50">
+          Si quieres, puedes editarlo durante el día. (Siempre se guarda <b>solo</b> para la fecha de hoy.)
+        </div>
+      </div>
+    );
+  };
 
   return (
     <Container>
@@ -130,21 +208,56 @@ export default function ReportePage() {
           </div>
 
           <Card>
-            {loading ? (
+            {mode === "loading" ? (
               <div className="text-sm text-white/70">Cargando…</div>
+            ) : mode === "askEdit" ? (
+              <div className="grid gap-4">
+                <div className="text-sm text-white/80">
+                  Ya existe un reporte para hoy. ¿Quieres <b>editarlo</b>?
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    onClick={() => {
+                      loadExistingIntoForm();
+                      setMode("editing");
+                    }}
+                  >
+                    <PencilLine size={16} />
+                    Sí, editar
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      // No mostramos el formulario si ya reportó (pero puede editar luego desde el resumen).
+                      setMode("done");
+                      setMsg("");
+                    }}
+                  >
+                    No, gracias
+                  </Button>
+                </div>
+
+                <div className="text-xs text-white/50">
+                  Nota: si eliges “No, gracias”, no verás el formulario. Podrás entrar a editar desde el resumen.
+                </div>
+              </div>
+            ) : mode === "done" ? (
+              <Summary />
             ) : (
+              // new | editing
               <div className="grid gap-5">
                 <div className="flex items-center gap-2 text-sm text-white/70">
                   <Clock3 size={16} />
                   <span>Fecha</span>
                 </div>
 
-                <Input
-                  type="date"
-                  value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
-                  className="max-w-xs"
-                />
+                <Input type="date" value={today} disabled className="max-w-xs opacity-70 cursor-not-allowed" />
+
+                <div className="text-xs text-white/50">
+                  Solo puedes reportar el día de hoy. (La base de datos también lo valida.)
+                </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -162,9 +275,9 @@ export default function ReportePage() {
                           value={bibleH}
                           onChange={(e) => setBibleH(onlyDigits(e.target.value))}
                           onBlur={() => {
-                            if (bibleH.trim() === "") return;
+                            if (bibleH.trim() === "") return setBibleH("0");
                             const n = clampInt(Number(bibleH), 0, 24);
-                            setBibleH(n === 0 ? "" : String(n));
+                            setBibleH(String(n));
                           }}
                         />
                       </div>
@@ -176,9 +289,9 @@ export default function ReportePage() {
                           value={bibleM}
                           onChange={(e) => setBibleM(onlyDigits(e.target.value))}
                           onBlur={() => {
-                            if (bibleM.trim() === "") return;
+                            if (bibleM.trim() === "") return setBibleM("0");
                             const n = clampInt(Number(bibleM), 0, 59);
-                            setBibleM(n === 0 ? "" : String(n));
+                            setBibleM(String(n));
                           }}
                         />
                       </div>
@@ -200,9 +313,9 @@ export default function ReportePage() {
                           value={prayerH}
                           onChange={(e) => setPrayerH(onlyDigits(e.target.value))}
                           onBlur={() => {
-                            if (prayerH.trim() === "") return;
+                            if (prayerH.trim() === "") return setPrayerH("0");
                             const n = clampInt(Number(prayerH), 0, 24);
-                            setPrayerH(n === 0 ? "" : String(n));
+                            setPrayerH(String(n));
                           }}
                         />
                       </div>
@@ -214,9 +327,9 @@ export default function ReportePage() {
                           value={prayerM}
                           onChange={(e) => setPrayerM(onlyDigits(e.target.value))}
                           onBlur={() => {
-                            if (prayerM.trim() === "") return;
+                            if (prayerM.trim() === "") return setPrayerM("0");
                             const n = clampInt(Number(prayerM), 0, 59);
-                            setPrayerM(n === 0 ? "" : String(n));
+                            setPrayerM(String(n));
                           }}
                         />
                       </div>
@@ -224,8 +337,21 @@ export default function ReportePage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <Button onClick={save}>Guardar</Button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button onClick={save}>{mode === "editing" ? "Guardar cambios" : "Guardar"}</Button>
+
+                  {mode === "editing" && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setMode("done");
+                        setMsg("");
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                  )}
+
                   {msg && (
                     <span className={msg.startsWith("✅") ? "text-green-300 text-sm" : "text-red-300 text-sm"}>
                       {msg}
@@ -234,7 +360,7 @@ export default function ReportePage() {
                 </div>
 
                 <div className="text-xs text-white/50">
-                  Tip: Puedes dejar campos vacíos y se guardan como 0.
+                  Tip: si borras un campo, se guarda como 0.
                 </div>
               </div>
             )}

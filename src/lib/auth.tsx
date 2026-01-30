@@ -13,6 +13,14 @@ type AuthCtx = {
   signOut: () => Promise<void>;
 };
 
+
+function withTimeout<T>(p: Promise<T>, ms = 8000, msg = "Tiempo de espera agotado. Revisa tu conexión o Supabase.") {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(msg)), ms)),
+  ]);
+}
+
 const Ctx = createContext<AuthCtx | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -22,11 +30,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState("");
 
   const loadProfile = useCallback(async (userId: string) => {
-    const { data: p, error: pErr } = await supabase
-      .from("profiles")
-      .select("id,name,role,group_id")
-      .eq("id", userId)
-      .maybeSingle();
+    const { data: p, error: pErr } = await withTimeout(
+      supabase
+        .from("profiles")
+        .select("id,name,role,group_id")
+        .eq("id", userId)
+        .maybeSingle(),
+      8000
+    );
 
     if (pErr) throw new Error(pErr.message);
     return (p as Profile) ?? null;
@@ -36,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError("");
     try {
-      const { data: sess, error: sErr } = await supabase.auth.getSession();
+      const { data: sess, error: sErr } = await withTimeout(supabase.auth.getSession(), 8000);
       if (sErr) throw new Error(sErr.message);
 
       const s = sess.session ?? null;

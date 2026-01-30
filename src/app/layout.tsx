@@ -6,12 +6,6 @@ export const metadata = {
   description: "Casa de Dios Cruzada Cristiana — Reporte de lectura bíblica y oración",
 };
 
-// Mejor experiencia en móvil (evita escalados raros y respeta el ancho real del dispositivo)
-export const viewport = {
-  width: "device-width",
-  initialScale: 1,
-};
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">

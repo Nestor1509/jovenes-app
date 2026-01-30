@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-import { cached, invalidate } from "@/lib/cache";
-import { Container, Card, Title, Subtitle, PageFade, Stat } from "@/components/ui";
+import { Container, Card, Title, Subtitle, PageFade, Stat, Button } from "@/components/ui";
 
 function formatearMinutos(min: number) {
   const t = Number.isFinite(min) ? Math.max(0, Math.floor(min)) : 0;
@@ -170,7 +170,23 @@ export default function MisEstadisticasPage() {
                 <Stat label="Reportes" value={all.total_reports} />
               </div>
             </Card>
-          </div>
+          
+          {rol === "admin" && (
+            <Card className="border-aguila-500/20 bg-aguila-500/10">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <div className="text-sm font-semibold">Mostrar todas las estadísticas</div>
+                  <div className="text-sm text-white/70 mt-1">
+                    Incluye también las estadísticas del <span className="text-white/90">admin</span> (vista general).
+                  </div>
+                </div>
+                <Link href="/admin/general">
+                  <Button variant="primary">Ver estadísticas generales</Button>
+                </Link>
+              </div>
+            </Card>
+          )}
+</div>
 
           {loading && <div className="text-sm text-white/70">Cargando…</div>}
         </div>

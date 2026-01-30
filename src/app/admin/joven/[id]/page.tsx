@@ -65,8 +65,6 @@ export default function PersonDetailPage() {
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
-  // Flag usado en UI para adaptar algunos textos/acciones.
-  // En producción se determina por el rol real; aquí evitamos comparaciones literales que rompen el build.
   const isLeaderView = profile?.role === "leader";
 
   async function cargar() {

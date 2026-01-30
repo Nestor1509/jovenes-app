@@ -52,6 +52,12 @@ function lockKey(dateISO: string) {
   return `report_lock_${dateISO}`;
 }
 
+function notifyLockChanged() {
+  try {
+    window.dispatchEvent(new Event("report_lock_changed"));
+  } catch {}
+}
+
 export default function ReportePage() {
   const today = useMemo(() => todayISO(), []);
   const dateKey = today;
@@ -115,6 +121,7 @@ export default function ReportePage() {
         try {
           localStorage.removeItem(lockKey(dateKey));
         } catch {}
+        notifyLockChanged();
         setBibleH("0");
         setBibleM("0");
         setPrayerH("0");
@@ -163,6 +170,7 @@ export default function ReportePage() {
     try {
       localStorage.removeItem(lockKey(dateKey));
     } catch {}
+    notifyLockChanged();
     setMode("done");
     setMsg("✅ Guardado correctamente");
   }
@@ -207,6 +215,7 @@ export default function ReportePage() {
                   try {
                     localStorage.removeItem(lockKey(dateKey));
                   } catch {}
+                  notifyLockChanged();
                   loadExistingIntoForm();
                   setMode("editing");
                   setMsg("");
@@ -254,6 +263,7 @@ export default function ReportePage() {
                       try {
                         localStorage.removeItem(lockKey(dateKey));
                       } catch {}
+                      notifyLockChanged();
                       loadExistingIntoForm();
                       setMode("editing");
                     }}
@@ -270,6 +280,7 @@ export default function ReportePage() {
                       try {
                         localStorage.setItem(lockKey(dateKey), "1");
                       } catch {}
+                      notifyLockChanged();
                       setMode("doneLocked");
                       setMsg("");
                     }}
@@ -279,7 +290,7 @@ export default function ReportePage() {
                 </div>
 
                 <div className="text-xs text-white/50">
-                  Nota: si eliges “No, gracias”, no verás el formulario. Podrás entrar a editar desde el resumen.
+                  Nota: si eliges “No, gracias”, la opción de <b>Reporte</b> se oculta por hoy.
                 </div>
               </div>
             ) : mode === "done" ? (

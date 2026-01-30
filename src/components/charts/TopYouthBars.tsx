@@ -5,12 +5,13 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recha
 type Item = {
   name: string;
   fullName?: string;
-  value: number; // minutos o cantidad (si usas reportes)
+  value: number; // minutos o cantidad
   isCount?: boolean;
 };
 
-function fmtDurationTick(v: number) {
+function fmtDurationTick(v: number, isCount?: boolean) {
   const n = Math.max(0, Number(v || 0));
+  if (isCount) return `${Math.round(n)}`;
   if (n < 60) return `${Math.round(n)}m`;
   const h = n / 60;
   if (Math.abs(h - Math.round(h)) < 1e-6) return `${Math.round(h)}h`;
@@ -19,7 +20,7 @@ function fmtDurationTick(v: number) {
 
 function niceMax(dataMax: number) {
   const m = Math.max(0, Number(dataMax || 0));
-  const step = m <= 60 ? 10 : m <= 180 ? 30 : 60;
+  const step = m <= 10 ? 2 : m <= 60 ? 10 : m <= 180 ? 30 : 60;
   return Math.ceil(m / step) * step;
 }
 
@@ -33,45 +34,55 @@ function fmtValue(v: number, isCount?: boolean) {
   return `${h} h ${m} min`;
 }
 
-
 export default function TopYouthBars({ data }: { data: Item[] }) {
+  const isCount = !!data?.[0]?.isCount;
+  const max = niceMax(Math.max(...data.map((d) => Number(d.value || 0))));
+
   return (
     <div className="h-80 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 10, right: 16, left: 0, bottom: 22 }}>
+          <defs>
+            <linearGradient id="tyb_value" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(16,185,129,0.95)" />
+              <stop offset="100%" stopColor="rgba(16,185,129,0.22)" />
+            </linearGradient>
+          </defs>
+
           <XAxis
             dataKey="name"
             tick={{ fontSize: 12, fill: "rgba(255,255,255,0.75)" }}
             tickLine={false}
             axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
-            interval={0}
-            angle={-18}
-            textAnchor="end"
-            height={44}
+            interval="preserveStartEnd"
+            minTickGap={10}
+            height={36}
           />
           <YAxis
-            width={46}
-            tick={{ fontSize: 12, fill: "rgba(255,255,255,0.75)" }}
+            domain={[0, max || 0]}
+            tickFormatter={(v) => fmtDurationTick(Number(v), isCount)}
+            tick={{ fontSize: 12, fill: "rgba(255,255,255,0.65)" }}
             tickLine={false}
             axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
-            domain={[
-              0,
-              (max: number) => (data?.some((d) => d.isCount) ? Math.ceil(Number(max) || 0) : niceMax(Number(max))),
-            ]}
-            tickFormatter={(v) => (data?.some((d) => d.isCount) ? `${Math.round(Number(v) || 0)}` : fmtDurationTick(Number(v)))}
+            width={40}
           />
           <Tooltip
-            formatter={(value: any, _name: any, props: any) => fmtValue(Number(value), props?.payload?.isCount)}
-            labelFormatter={(_, payload) => (payload?.[0]?.payload?.fullName ?? "")}
+            cursor={{ fill: "rgba(255,255,255,0.06)" }}
             contentStyle={{
-              background: "rgba(10,10,10,0.92)",
-              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(10,10,12,0.80)",
+              border: "1px solid rgba(255,255,255,0.10)",
               borderRadius: 14,
+              backdropFilter: "blur(10px)",
+              color: "white",
             }}
-            itemStyle={{ color: "rgba(255,255,255,0.88)" }}
-            labelStyle={{ color: "rgba(255,255,255,0.7)" }}
+            labelFormatter={(_, payload) => {
+              const item = payload?.[0]?.payload as Item | undefined;
+              return item?.fullName || item?.name || "";
+            }}
+            formatter={(value: any) => [fmtValue(Number(value), isCount), isCount ? "Reportes" : "Minutos"]}
           />
-          <Bar dataKey="value" fill="rgba(16,185,129,0.85)" radius={[10, 10, 0, 0]} isAnimationActive animationDuration={650} />
+
+          <Bar dataKey="value" fill="url(#tyb_value)" radius={[12, 12, 6, 6]} maxBarSize={48} />
         </BarChart>
       </ResponsiveContainer>
     </div>

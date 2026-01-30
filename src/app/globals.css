@@ -2,8 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body { height: 100%; }
+html, body { height: 100%; width: 100%; overflow-x: hidden; }
 body { color: white; }
+
+/* Evita que en móvil se pueda “mover” horizontalmente la página */
+body { overscroll-behavior-x: none; touch-action: pan-y; }
+
+/* Extra defensa contra “panning” horizontal por elementos que se salen del ancho */
+* { max-width: 100%; }
+body { position: relative; }
+
 
 :root {
   --glass: rgba(255,255,255,0.06);

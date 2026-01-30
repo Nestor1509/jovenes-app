@@ -11,7 +11,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
       <NavBar />
-      <div className="relative">
+      {/* overflow-x-hidden: evita scroll horizontal por efectos/blur */}
+      <div className="relative overflow-x-hidden">
         <div className="pointer-events-none absolute inset-0 opacity-60">
           <div className="absolute -top-40 left-1/2 h-80 w-[42rem] -translate-x-1/2 rounded-full bg-amber-500/10 blur-3xl" />
           <div className="absolute top-40 right-0 h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl" />

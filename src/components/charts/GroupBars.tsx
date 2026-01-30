@@ -32,40 +32,70 @@ function fmt(min: number) {
 }
 
 export default function GroupBars({ data }: { data: Item[] }) {
+  const max = niceMax(
+    Math.max(
+      ...data.map((d) => Math.max(Number(d.lectura_min || 0), Number(d.oracion_min || 0)))
+    )
+  );
+
   return (
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 10, right: 16, left: 0, bottom: 22 }}>
+          <defs>
+            <linearGradient id="gb_read" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(245,158,11,0.95)" />
+              <stop offset="100%" stopColor="rgba(245,158,11,0.25)" />
+            </linearGradient>
+            <linearGradient id="gb_pray" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(99,102,241,0.95)" />
+              <stop offset="100%" stopColor="rgba(99,102,241,0.25)" />
+            </linearGradient>
+          </defs>
+
           <XAxis
             dataKey="name"
             tick={{ fontSize: 12, fill: "rgba(255,255,255,0.75)" }}
             tickLine={false}
             axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
-            interval={0}
-            angle={-18}
-            textAnchor="end"
-            height={44}
+            interval="preserveStartEnd"
+            minTickGap={10}
+            height={36}
           />
           <YAxis
-            width={46}
-            tick={{ fontSize: 12, fill: "rgba(255,255,255,0.75)" }}
+            domain={[0, max || 0]}
+            tickFormatter={fmtDurationTick}
+            tick={{ fontSize: 12, fill: "rgba(255,255,255,0.65)" }}
             tickLine={false}
             axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
-            domain={[0, (max: number) => niceMax(Number(max))]}
-            tickFormatter={(v) => fmtDurationTick(Number(v))}
+            width={40}
           />
           <Tooltip
-            formatter={(value: any, name: any) => [fmt(Number(value)), name === "lectura_min" ? "Lectura" : "Oración"]}
+            cursor={{ fill: "rgba(255,255,255,0.06)" }}
             contentStyle={{
-              background: "rgba(10,10,10,0.92)",
-              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(10,10,12,0.80)",
+              border: "1px solid rgba(255,255,255,0.10)",
               borderRadius: 14,
+              backdropFilter: "blur(10px)",
+              color: "white",
             }}
-            itemStyle={{ color: "rgba(255,255,255,0.88)" }}
-            labelStyle={{ color: "rgba(255,255,255,0.7)" }}
+            labelStyle={{ color: "rgba(255,255,255,0.85)" }}
+            formatter={(value: any, name) => [fmt(Number(value)), name === "lectura_min" ? "Lectura" : "Oración"]}
           />
-          <Bar dataKey="lectura_min" fill="rgba(245,158,11,0.85)" radius={[10, 10, 0, 0]} isAnimationActive animationDuration={650} />
-          <Bar dataKey="oracion_min" fill="rgba(99,102,241,0.85)" radius={[10, 10, 0, 0]} isAnimationActive animationDuration={650} />
+          <Bar
+            dataKey="lectura_min"
+            name="Lectura"
+            fill="url(#gb_read)"
+            radius={[12, 12, 6, 6]}
+            maxBarSize={52}
+          />
+          <Bar
+            dataKey="oracion_min"
+            name="Oración"
+            fill="url(#gb_pray)"
+            radius={[12, 12, 6, 6]}
+            maxBarSize={52}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>

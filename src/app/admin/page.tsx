@@ -616,16 +616,25 @@ export default function AdminPage() {
                         </td>
                         
 <td className="py-3 pr-3">
-  {p.role === "admin" ? (
-    <span className="text-xs text-white/40">—</span>
-  ) : (
-    <Link href={`/admin/persona/${p.id}`} className="inline-flex">
+  <div className="flex flex-wrap gap-2">
+    {p.role === "admin" ? (
+      <span className="text-xs text-white/40">—</span>
+    ) : (
+      <Link href={`/admin/persona/${p.id}`} className="inline-flex">
+        <span className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15 transition">
+          Detalle
+        </span>
+      </Link>
+    )}
+
+    <Link href={`/admin/usuario/${p.id}/perfil`} className="inline-flex">
       <span className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15 transition">
-        Ver
+        Editar
       </span>
     </Link>
-  )}
+  </div>
 </td>
+
                         <td className="py-3 pr-3">
                           {savingId === p.id ? (
                             <span className="text-xs text-white/60">Guardando…</span>

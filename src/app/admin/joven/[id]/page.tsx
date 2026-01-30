@@ -65,7 +65,7 @@ export default function PersonDetailPage() {
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
-  const isLeaderView = "0" === "1";
+  const isLeaderView = profile?.role === "leader";
 
   async function cargar() {
     setMsg("");

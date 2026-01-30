@@ -12,6 +12,7 @@ export function Card({
   children,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & { className?: string; children: React.ReactNode }) {
+  const { onDrag, onDragStart, onDragEnd, ...safeProps } = props as any;
   return (
     <motion.div
       whileHover={{ y: -2 }}
@@ -20,7 +21,7 @@ export function Card({
         "glass rounded-2xl p-5 shadow-glow transition will-change-transform hover:bg-white/[0.07] hover:border-white/15",
         className
       )}
-      {...props}
+      {...safeProps}
     >
       {children}
     </motion.div>
@@ -51,12 +52,14 @@ export function Button({
     subtle: "rounded-xl px-4 py-2 text-sm font-semibold bg-white/5 border border-white/10 hover:bg-white/10",
   };
 
+  const { onDrag, onDragStart, onDragEnd, ...safeProps } = props as any;
+
   return (
     <motion.button
       whileTap={{ scale: 0.98 }}
       transition={{ type: "spring", stiffness: 500, damping: 30 }}
       className={cn(base, styles[variant], "active:translate-y-[0.5px]", className)}
-      {...props}
+      {...safeProps}
     />
   );
 }

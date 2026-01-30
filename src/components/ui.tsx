@@ -4,30 +4,22 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
 export function Container({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("mx-auto w-full max-w-6xl px-4", className)} {...props} />;
+  // Padding responsivo para que se sienta bien en móvil/tablet/desktop.
+  return <div className={cn("mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8", className)} {...props} />;
 }
 
-export function Card({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement> & { className?: string; children: React.ReactNode }) {
-  const { onDrag, onDragStart, onDragEnd, ...safeProps } = props as any;
+export function Card({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
-    <motion.div
-      whileHover={{ y: -2 }}
-      transition={{ type: "spring", stiffness: 260, damping: 22 }}
+    <div
       className={cn(
-        "glass rounded-2xl p-5 shadow-glow transition will-change-transform hover:bg-white/[0.07] hover:border-white/15",
+        "glass rounded-2xl p-5 shadow-glow transition will-change-transform hover:bg-white/[0.07]",
         className
       )}
-      {...safeProps}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
-
 
 export function Title({ children }: { children: React.ReactNode }) {
   return <h1 className="text-2xl font-semibold tracking-tight">{children}</h1>;
@@ -52,18 +44,8 @@ export function Button({
     subtle: "rounded-xl px-4 py-2 text-sm font-semibold bg-white/5 border border-white/10 hover:bg-white/10",
   };
 
-  const { onDrag, onDragStart, onDragEnd, ...safeProps } = props as any;
-
-  return (
-    <motion.button
-      whileTap={{ scale: 0.98 }}
-      transition={{ type: "spring", stiffness: 500, damping: 30 }}
-      className={cn(base, styles[variant], "active:translate-y-[0.5px]", className)}
-      {...safeProps}
-    />
-  );
+  return <button className={cn(base, styles[variant], className)} {...props} />;
 }
-
 
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn("input", className)} {...props} />;

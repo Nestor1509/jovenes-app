@@ -11,7 +11,7 @@ function fmtMinutes(min: number) {
   return `${h}h ${m}m`;
 }
 
-export default function TrendLine({
+export function TrendLine({
   data,
   height = 240,
 }: {
@@ -20,7 +20,6 @@ export default function TrendLine({
 }) {
   return (
     <div style={{ width: "100%", height }}>
-      <div className="w-full min-h-[280px] h-[280px]">
       <ResponsiveContainer width="100%" height="100%" minHeight={height}>
         <LineChart data={data} margin={{ top: 10, right: 18, left: 0, bottom: 18 }}>
           <defs>
@@ -88,6 +87,8 @@ export default function TrendLine({
         </LineChart>
       </ResponsiveContainer>
     </div>
-    </div>
   );
 }
+
+
+export default TrendLine;

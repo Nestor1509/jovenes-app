@@ -40,7 +40,6 @@ export default function TopYouthBars({ data }: { data: Item[] }) {
 
   return (
     <div className="w-full" style={{ height: 320 }}>
-      <div className="w-full min-h-[280px] h-[280px]">
       <ResponsiveContainer width="100%" height="100%" minHeight={320}>
         <BarChart data={data} margin={{ top: 10, right: 16, left: 0, bottom: 22 }}>
           <defs>
@@ -86,7 +85,6 @@ export default function TopYouthBars({ data }: { data: Item[] }) {
           <Bar dataKey="value" fill="url(#tyb_value)" radius={[12, 12, 6, 6]} maxBarSize={48} />
         </BarChart>
       </ResponsiveContainer>
-    </div>
     </div>
   );
 }

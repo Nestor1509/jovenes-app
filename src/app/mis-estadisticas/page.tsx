@@ -1,10 +1,20 @@
+
+        <div className="mt-5 grid grid-cols-1 gap-4">
+          <ChartCard
+            title="Tendencia (mes a mes)"
+            subtitle="Lectura bíblica y oración acumuladas por mes"
+          >
+            <TrendLine data={trendData} />
+          </ChartCard>
+        </div>
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { Container, Card, Title, Subtitle, PageFade, Stat, Button } from "@/components/ui";
-import TrendLine from "@/components/charts/TrendLine";
+import { TrendLine } from "@/components/charts/TrendLine";
+import { ChartCard } from "@/components/charts/ChartCard";
 
 function formatearMinutos(min: number) {
   const t = Number.isFinite(min) ? Math.max(0, Math.floor(min)) : 0;
@@ -53,7 +63,6 @@ export default function MisEstadisticasPage() {
 
   const [week, setWeek] = useState<Totales>({ total_bible_minutes: 0, total_prayer_minutes: 0, total_reports: 0 });
   const [month, setMonth] = useState<Totales>({ total_bible_minutes: 0, total_prayer_minutes: 0, total_reports: 0 });
-  const [trend, setTrend] = useState<any[]>([]);
   const [all, setAll] = useState<Totales>({ total_bible_minutes: 0, total_prayer_minutes: 0, total_reports: 0 });
 
   const today = useMemo(() => hoyISO(), []);
@@ -116,16 +125,6 @@ export default function MisEstadisticasPage() {
 
       setMonth(sumar(mRows ?? []));
 
-      // Trend (últimos 30 días)
-      const trendData = (mRows ?? []).map((r: any) => ({
-        date: r.report_date,
-        lectura_min: Number(r.bible_minutes || 0),
-        oracion_min: Number(r.prayer_minutes || 0),
-        total_min: Number(r.bible_minutes || 0) + Number(r.prayer_minutes || 0),
-      }));
-      setTrend(trendData);
-
-
       const { data: aRows } = await supabase
         .from("reports")
         .select("bible_minutes, prayer_minutes")
@@ -139,7 +138,19 @@ export default function MisEstadisticasPage() {
 
   const rolBonito = rol === "admin" ? "Admin" : rol === "leader" ? "Líder" : "Joven";
 
-  return (
+  
+  const trendData = useMemo(() => {
+    const rows = monthRows ?? [];
+    return rows
+      .slice()
+      .sort((a, b) => (a.month > b.month ? 1 : -1))
+      .map((r) => ({
+        label: r.month,
+        lectura: Number(r.total_bible_minutes ?? 0),
+        oracion: Number(r.total_prayer_minutes ?? 0),
+      }));
+  }, [monthRows]);
+return (
     <Container>
       <PageFade>
         <div className="grid gap-6">

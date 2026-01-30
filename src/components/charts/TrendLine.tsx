@@ -15,7 +15,9 @@ export function TrendLine({
   data,
   height = 240,
 }: {
-  data: Array<{ label: string; bible: number; prayer: number }>;
+  // Nota: el resto de la app usa llaves en español (lectura/oracion).
+  // Si aquí esperamos bible/prayer, Recharts no encuentra los dataKey y la gráfica queda vacía.
+  data: Array<{ label: string; lectura: number; oracion: number }>;
   height?: number;
 }) {
   return (
@@ -59,7 +61,7 @@ export function TrendLine({
               color: "white",
             }}
             labelStyle={{ color: "rgba(255,255,255,0.85)" }}
-            formatter={(value: any, name) => [fmtMinutes(Number(value)), name === "bible" ? "Lectura" : "Oración"]}
+            formatter={(value: any, name) => [fmtMinutes(Number(value)), name === "lectura" ? "Lectura" : "Oración"]}
           />
           <Legend
             verticalAlign="top"
@@ -68,7 +70,7 @@ export function TrendLine({
           />
           <Line
             type="monotone"
-            dataKey="bible"
+            dataKey="lectura"
             name="Lectura"
             stroke="url(#tl_bible)"
             strokeWidth={3}
@@ -77,7 +79,7 @@ export function TrendLine({
           />
           <Line
             type="monotone"
-            dataKey="prayer"
+            dataKey="oracion"
             name="Oración"
             stroke="url(#tl_prayer)"
             strokeWidth={3}

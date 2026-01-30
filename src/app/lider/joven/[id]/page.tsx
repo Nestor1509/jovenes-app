@@ -168,19 +168,19 @@ export default function LiderJovenDetallePage() {
   }, [rows]);
 
   const trend = useMemo(() => {
-    const map = new Map<string, { bible: number; prayer: number }>();
+    const map = new Map<string, { lectura: number; oracion: number }>();
     for (const r of rows) {
       const k = weekKey(r.report_date);
-      const cur = map.get(k) ?? { bible: 0, prayer: 0 };
-      cur.bible += Number(r.bible_minutes ?? 0);
-      cur.prayer += Number(r.prayer_minutes ?? 0);
+      const cur = map.get(k) ?? { lectura: 0, oracion: 0 };
+      cur.lectura += Number(r.bible_minutes ?? 0);
+      cur.oracion += Number(r.prayer_minutes ?? 0);
       map.set(k, cur);
     }
     const labels = Array.from(map.keys()).sort();
     return labels.map((k) => ({
       label: k.slice(5), // MM-DD
-      bible: map.get(k)!.bible,
-      prayer: map.get(k)!.prayer,
+      lectura: map.get(k)!.lectura,
+      oracion: map.get(k)!.oracion,
     }));
   }, [rows]);
 

@@ -165,8 +165,8 @@ export default function AdminPersonaDetallePage() {
     const labels = Array.from(map.keys()).sort();
     return labels.map((k) => ({
       label: k.slice(5),
-      bible: map.get(k)!.bible,
-      prayer: map.get(k)!.prayer,
+      lectura: map.get(k)!.bible,
+      oracion: map.get(k)!.prayer,
     }));
   }, [rows]);
 

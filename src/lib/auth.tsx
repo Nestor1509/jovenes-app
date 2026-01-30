@@ -30,14 +30,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState("");
 
   const loadProfile = useCallback(async (userId: string) => {
-    const { data: p, error: pErr } = await withTimeout(
-      supabase
-        .from("profiles")
-        .select("id,name,role,group_id")
-        .eq("id", userId)
-        .maybeSingle(),
-      8000
-    );
+    function withTimeout<T>(
+      p: PromiseLike<T>,
+      ms = 8000,
+      msg = "Tiempo de espera agotado. Revisa tu conexión o Supabase."
+    ): Promise<T> {
+      return Promise.race([
+        Promise.resolve(p),
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error(msg)), ms)),
+      ]);
+    }
+
+    const result = await withTimeout(supabase.from("profiles").select("*").eq("id", userId).single());
+    const { data: p, error: pErr } = result;
 
     if (pErr) throw new Error(pErr.message);
     return (p as Profile) ?? null;

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useMyProfile } from "@/lib/useMyProfile";
@@ -18,10 +18,37 @@ function roleLabel(role?: string) {
 
 type NavItem = { href: string; label: string; icon: any; show: (role?: string, hasSession?: boolean) => boolean };
 
+function todayISO() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function lockKey(dateISO: string) {
+  return `report_lock_${dateISO}`;
+}
+
 export default function NavBar() {
   const { loading, session, profile, error } = useMyProfile();
   const pathname = usePathname();
   const router = useRouter();
+
+  const [hideReport, setHideReport] = useState(false);
+
+  useEffect(() => {
+    const update = () => {
+      try {
+        setHideReport(localStorage.getItem(lockKey(todayISO())) === "1");
+      } catch {
+        setHideReport(false);
+      }
+    };
+    update();
+    window.addEventListener("storage", update);
+    return () => window.removeEventListener("storage", update);
+  }, []);
 
   async function salir() {
     await supabase.auth.signOut();
@@ -41,7 +68,7 @@ export default function NavBar() {
   const items: NavItem[] = [
     { href: "/", label: "Inicio", icon: Home, show: () => true },
     { href: "/publico", label: "Público", icon: Globe, show: () => true },
-    { href: "/reporte", label: "Reporte", icon: ClipboardList, show: (_r, has) => !!has },
+    { href: "/reporte", label: "Reporte", icon: ClipboardList, show: (_r, has) => !!has && !hideReport },
     { href: "/mis-estadisticas", label: "Mis estadísticas", icon: BarChart3, show: (_r, has) => !!has },
     { href: "/lider", label: "Líder", icon: Users, show: (r, has) => !!has && (r === "leader" || r === "admin") },
     { href: "/admin", label: "Admin", icon: Shield, show: (r, has) => !!has && r === "admin" },

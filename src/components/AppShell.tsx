@@ -26,7 +26,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className="relative mx-auto w-full max-w-6xl px-4 py-8"
+            // Importante: las páginas ya usan <Container /> (max-w + px).
+            // Si también lo ponemos aquí, en móvil queda “doble padding” y sobra espacio.
+            className="relative w-full py-6 sm:py-8"
           >
             {children}
           </motion.main>

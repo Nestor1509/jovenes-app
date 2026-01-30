@@ -46,7 +46,11 @@ type ExistingReport = {
   prayer_minutes: number;
 };
 
-type Mode = "loading" | "new" | "askEdit" | "editing" | "done";
+type Mode = "loading" | "new" | "askEdit" | "editing" | "done" | "doneLocked";
+
+function lockKey(dateISO: string) {
+  return `report_lock_${dateISO}`;
+}
 
 export default function ReportePage() {
   const today = useMemo(() => todayISO(), []);
@@ -86,8 +90,18 @@ export default function ReportePage() {
           bible_minutes: data.bible_minutes ?? 0,
           prayer_minutes: data.prayer_minutes ?? 0,
         });
+        // Si el usuario ya dijo que NO quiere editar hoy, no volvemos a preguntar
+        // y tampoco mostramos la opción de editar.
+        const locked = (() => {
+          try {
+            return localStorage.getItem(lockKey(dateKey)) === "1";
+          } catch {
+            return false;
+          }
+        })();
+
         // Preguntamos si quiere editar; mientras tanto no mostramos el formulario.
-        setMode("askEdit");
+        setMode(locked ? "doneLocked" : "askEdit");
         // form limpio por si decide crear/editar luego
         setBibleH("0");
         setBibleM("0");
@@ -97,6 +111,10 @@ export default function ReportePage() {
         // No hay reporte hoy: formulario limpio (0)
         setExisting(null);
         setMode("new");
+        // Si no hay reporte hoy, quitamos el lock de hoy por si quedó de antes.
+        try {
+          localStorage.removeItem(lockKey(dateKey));
+        } catch {}
         setBibleH("0");
         setBibleM("0");
         setPrayerH("0");
@@ -142,11 +160,14 @@ export default function ReportePage() {
     }
 
     setExisting({ bible_minutes, prayer_minutes });
+    try {
+      localStorage.removeItem(lockKey(dateKey));
+    } catch {}
     setMode("done");
     setMsg("✅ Guardado correctamente");
   }
 
-  const Summary = () => {
+  const Summary = ({ allowEdit }: { allowEdit: boolean }) => {
     const b = fromMinutes(existing?.bible_minutes ?? 0);
     const p = fromMinutes(existing?.prayer_minutes ?? 0);
 
@@ -177,23 +198,34 @@ export default function ReportePage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 pt-1">
-          <Button
-            variant="ghost"
-            onClick={() => {
-              loadExistingIntoForm();
-              setMode("editing");
-              setMsg("");
-            }}
-          >
-            <PencilLine size={16} />
-            Editar reporte
-          </Button>
-        </div>
+        {allowEdit ? (
+          <>
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem(lockKey(dateKey));
+                  } catch {}
+                  loadExistingIntoForm();
+                  setMode("editing");
+                  setMsg("");
+                }}
+              >
+                <PencilLine size={16} />
+                Editar reporte
+              </Button>
+            </div>
 
-        <div className="text-xs text-white/50">
-          Si quieres, puedes editarlo durante el día. (Siempre se guarda <b>solo</b> para la fecha de hoy.)
-        </div>
+            <div className="text-xs text-white/50">
+              Si quieres, puedes editarlo durante el día. (Siempre se guarda <b>solo</b> para la fecha de hoy.)
+            </div>
+          </>
+        ) : (
+          <div className="text-xs text-white/50">
+            Ya reportaste hoy. (Elegiste no editar.)
+          </div>
+        )}
       </div>
     );
   };
@@ -219,6 +251,9 @@ export default function ReportePage() {
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
                     onClick={() => {
+                      try {
+                        localStorage.removeItem(lockKey(dateKey));
+                      } catch {}
                       loadExistingIntoForm();
                       setMode("editing");
                     }}
@@ -230,8 +265,12 @@ export default function ReportePage() {
                   <Button
                     variant="ghost"
                     onClick={() => {
-                      // No mostramos el formulario si ya reportó (pero puede editar luego desde el resumen).
-                      setMode("done");
+                      // Si elige no editar, guardamos un "lock" (solo hoy) para
+                      // que la app no muestre la opción de reporte/editar otra vez.
+                      try {
+                        localStorage.setItem(lockKey(dateKey), "1");
+                      } catch {}
+                      setMode("doneLocked");
                       setMsg("");
                     }}
                   >
@@ -244,7 +283,9 @@ export default function ReportePage() {
                 </div>
               </div>
             ) : mode === "done" ? (
-              <Summary />
+              <Summary allowEdit />
+            ) : mode === "doneLocked" ? (
+              <Summary allowEdit={false} />
             ) : (
               // new | editing
               <div className="grid gap-5">

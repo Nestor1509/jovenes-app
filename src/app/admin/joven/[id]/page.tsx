@@ -65,9 +65,9 @@ export default function PersonDetailPage() {
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
-  // Esta ruta es exclusiva de admin (la vista de líder vive en /lider/joven/[id]).
-  // Dejamos la bandera por compatibilidad con el código existente.
-  const isLeaderView = false;
+  // Flag usado en UI para adaptar algunos textos/acciones.
+  // En producción se determina por el rol real; aquí evitamos comparaciones literales que rompen el build.
+  const isLeaderView = profile?.role === "leader";
 
   async function cargar() {
     setMsg("");

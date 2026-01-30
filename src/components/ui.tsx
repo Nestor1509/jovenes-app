@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
 export function Container({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  // Padding responsivo para que se sienta bien en móvil/tablet/desktop.
   return <div className={cn("mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8", className)} {...props} />;
 }
 

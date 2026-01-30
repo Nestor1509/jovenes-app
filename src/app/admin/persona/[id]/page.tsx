@@ -254,7 +254,7 @@ export default function AdminPersonaDetallePage() {
           {!restricted && (
             <>
               <Card>
-                <div className="text-sm font-semibold mb-3">Resumen del rango</div>
+                <div className="text-sm font-semibold mb-3">Resumen</div>
                 <div className="grid gap-3 md:grid-cols-3">
                   <Stat label="Lectura" value={fmtMinutes(totals.bible)} />
                   <Stat label="Oración" value={fmtMinutes(totals.prayer)} />

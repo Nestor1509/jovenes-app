@@ -1,7 +1,9 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import PDFDocument from "pdfkit";
 import { createUserSupabase, getBearerToken } from "@/lib/supabaseServer";
-export const runtime = "nodejs";
 
 type Row = {
   report_date: string;
@@ -83,8 +85,14 @@ export async function GET(req: Request) {
     const total = totalBible + totalPrayer;
 
     const doc = new PDFDocument({ size: "A4", margin: 40 });
+
     const chunks: Buffer[] = [];
-    doc.on("data", (d) => chunks.push(Buffer.from(d)));
+    doc.on("data", (d) => chunks.push(Buffer.isBuffer(d) ? d : Buffer.from(d)));
+
+    const bufPromise = new Promise<Buffer>((resolve, reject) => {
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
+      doc.on("error", reject);
+    });
 
     // Header
     doc.fontSize(18).font("Helvetica-Bold").text("Reporte de actividades", { align: "left" });
@@ -185,9 +193,7 @@ export async function GET(req: Request) {
 
     doc.end();
 
-    const buf = await new Promise<Buffer>((resolve) => {
-      doc.on("end", () => resolve(Buffer.concat(chunks)));
-    });
+    const buf = await bufPromise;
 
     const filename = safeFileName(`reportes-${from}-a-${to}${groupId ? "-grupo" : ""}.pdf`);
     return new NextResponse(new Uint8Array(buf), {
@@ -198,7 +204,9 @@ export async function GET(req: Request) {
         "Cache-Control": "no-store",
       },
     });
-  } catch {
+
+  } catch (e: any) {
+    console.error("PDF_EXPORT_ERROR:", e);
     return NextResponse.json({ error: "Error interno." }, { status: 500 });
   }
 }

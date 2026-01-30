@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { Container, Card, Title, Subtitle, PageFade, Stat, Button } from "@/components/ui";
-import { TrendLine } from "@/components/charts/TrendLine";
+import dynamic from "next/dynamic";
+const TrendLine = dynamic(() => import("@/components/charts/TrendLine"), { ssr: false });
+
 import { ChartCard } from "@/components/charts/ChartCard";
 
 type Totales = {

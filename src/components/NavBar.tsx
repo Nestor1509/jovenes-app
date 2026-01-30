@@ -120,7 +120,7 @@ export default function NavBar() {
   return (
     // En móviles algunos navegadores no aplican bien backdrop-filter y se ve "fantasma".
     // Damos un fondo más sólido como fallback y solo bajamos la opacidad cuando hay soporte.
-    <div className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/95 supports-[backdrop-filter]:bg-zinc-950/70 supports-[backdrop-filter]:backdrop-blur">
+    <div className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/95 md:supports-[backdrop-filter]:bg-zinc-950/70 md:supports-[backdrop-filter]:backdrop-blur">
       <Container className="flex items-center justify-between py-3">
         <Link href="/" className="group flex items-center gap-3 select-none" prefetch>
           <div className="h-10 w-10 rounded-2xl glass grid place-items-center shadow-soft text-sm font-semibold">

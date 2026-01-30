@@ -6,7 +6,9 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { useMyProfile } from "@/lib/useMyProfile";
 import LoadingCard from "@/components/LoadingCard";
-import TrendLine from "@/components/charts/TrendLine";
+import dynamic from "next/dynamic";
+const TrendLine = dynamic(() => import("@/components/charts/TrendLine"), { ssr: false });
+
 import { Container, Card, Title, Subtitle, PageFade, Stat, Button, Input } from "@/components/ui";
 import { ArrowLeft, CalendarDays } from "lucide-react";
 

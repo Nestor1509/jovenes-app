@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { logAuditEvent } from "@/lib/audit";
 
 type Body = { group_id: string };
 
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
     const callerId = userData.user.id;
     const { data: callerProfile, error: profErr } = await supabaseAdmin
       .from("profiles")
-      .select("role")
+      .select("role,name")
       .eq("id", callerId)
       .single();
 
@@ -33,6 +34,8 @@ export async function POST(req: Request) {
     const body = (await req.json()) as Body;
     const groupId = (body.group_id ?? "").trim();
     if (!groupId) return NextResponse.json({ error: "Falta group_id." }, { status: 400 });
+
+    const { data: groupRow } = await supabaseAdmin.from("groups").select("id,name").eq("id", groupId).maybeSingle();
 
     // Desasignar personas del grupo antes de borrar (evita FK errors si no hay ON DELETE SET NULL)
     const { error: updErr } = await supabaseAdmin
@@ -48,6 +51,15 @@ export async function POST(req: Request) {
     if (delErr) {
       return NextResponse.json({ error: delErr.message ?? "No se pudo eliminar el grupo." }, { status: 400 });
     }
+
+    await logAuditEvent({
+      actor_id: callerId,
+      actor_name: (callerProfile as any)?.name ?? null,
+      action: "DELETE_GROUP",
+      target_type: "group",
+      target_id: groupId,
+      target_name: (groupRow as any)?.name ?? null,
+    });
 
     return NextResponse.json({ ok: true });
   } catch {

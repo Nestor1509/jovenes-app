@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { logAuditEvent } from "@/lib/audit";
 
 export async function POST(req: Request) {
   try {
@@ -22,12 +23,18 @@ export async function POST(req: Request) {
 
     const { data: callerProfile, error: profErr } = await supabaseAdmin
       .from("profiles")
-      .select("role")
+      .select("role,name")
       .eq("id", callerId)
       .maybeSingle();
 
     if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
     if ((callerProfile as any)?.role !== "admin") return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+
+    const { data: targetProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("name")
+      .eq("id", userId)
+      .maybeSingle();
 
     if (name) {
       const { error } = await supabaseAdmin.from("profiles").update({ name }).eq("id", userId);
@@ -39,6 +46,29 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "La contraseña debe tener mínimo 6 caracteres." }, { status: 400 });
       const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password });
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (name) {
+      await logAuditEvent({
+        actor_id: callerId,
+        actor_name: (callerProfile as any)?.name ?? null,
+        action: "UPDATE_USER_PROFILE",
+        target_type: "user",
+        target_id: userId,
+        target_name: name,
+        details: { prev_name: (targetProfile as any)?.name ?? null },
+      });
+    }
+
+    if (password) {
+      await logAuditEvent({
+        actor_id: callerId,
+        actor_name: (callerProfile as any)?.name ?? null,
+        action: "RESET_PASSWORD",
+        target_type: "user",
+        target_id: userId,
+        target_name: (targetProfile as any)?.name ?? null,
+      });
     }
 
     return NextResponse.json({ ok: true });

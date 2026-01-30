@@ -6,9 +6,9 @@ import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import { cached, invalidate } from "@/lib/cache";
 import { useMyProfile } from "@/lib/useMyProfile";
-import { Container, Card, Title, Subtitle, PageFade, Stat, Select, Skeleton, EmptyState } from "@/components/ui";
+import { Container, Card, Title, Subtitle, PageFade, Stat, Select, Button, Skeleton, EmptyState } from "@/components/ui";
 import LoadingCard from "@/components/LoadingCard";
-import { Users, CalendarDays, BarChart3, Trophy, RefreshCw } from "lucide-react";
+import { Users, CalendarDays, BarChart3, Trophy, RefreshCw, FileDown } from "lucide-react";
 const TopYouthBars = dynamic(() => import("@/components/charts/TopYouthBars"), { ssr: false });
 
 
@@ -95,6 +95,61 @@ export default function LiderPage() {
   const today = useMemo(() => hoyISO(), []);
   const defaultWeek = useMemo(() => inicioSemanaISO(today), [today]);
   const defaultMonth = useMemo(() => inicioMesISO(today), [today]);
+
+  function rangeFromSelection() {
+    // Si hay week seleccionada, exportamos esa semana.
+    if (selectedWeek) {
+      const start = selectedWeek;
+      const d = new Date(start + "T00:00:00Z");
+      d.setUTCDate(d.getUTCDate() + 6);
+      const end = d.toISOString().slice(0, 10);
+      return { from: start, to: end };
+    }
+
+    // Si hay mes seleccionado, exportamos el mes.
+    if (selectedMonth) {
+      const start = `${selectedMonth}-01`;
+      const d = new Date(start + "T00:00:00Z");
+      // último día del mes: ir al 1 del siguiente mes -1
+      d.setUTCMonth(d.getUTCMonth() + 1);
+      d.setUTCDate(0);
+      const end = d.toISOString().slice(0, 10);
+      return { from: start, to: end };
+    }
+
+    return { from: defaultWeek, to: today };
+  }
+
+  async function exportar(tipo: "xlsx" | "pdf") {
+    try {
+      setMsg("");
+      const token = session?.access_token;
+      if (!token) throw new Error("Sesión inválida.");
+
+      const { from, to } = rangeFromSelection();
+      const endpoint = tipo === "xlsx" ? "/api/export/reports/xlsx" : "/api/export/reports/pdf";
+      const params = new URLSearchParams({ from, to });
+      const res = await fetch(`${endpoint}?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const blob = await res.blob();
+      if (!res.ok) {
+        const txt = await blob.text().catch(() => "");
+        throw new Error(txt || "No se pudo exportar.");
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `reportes-${from}-a-${to}.${tipo}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setMsg(String(e?.message || "No se pudo exportar."));
+    }
+  }
 
   async function cargarBase() {
     setMsg("");
@@ -272,12 +327,17 @@ export default function LiderPage() {
               <Subtitle>{group ? `Grupo: ${group.name} (solo jóvenes)` : "Estadísticas del grupo"}</Subtitle>
             </div>
 
-            <button
-              onClick={cargarBase}
-              className="px-3 py-2 rounded-xl hover:bg-white/10 text-sm inline-flex items-center gap-2"
-            >
-              <RefreshCw size={16} /> Actualizar
-            </button>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <Button onClick={() => exportar("xlsx")} className="inline-flex items-center gap-2">
+                <FileDown size={16} /> Excel
+              </Button>
+              <Button onClick={() => exportar("pdf")} variant="ghost" className="inline-flex items-center gap-2">
+                <FileDown size={16} /> PDF
+              </Button>
+              <Button onClick={cargarBase} variant="ghost" className="inline-flex items-center gap-2">
+                <RefreshCw size={16} /> Actualizar
+              </Button>
+            </div>
           </div>
 
           {msg && <div className="text-red-300 text-sm">{msg}</div>}

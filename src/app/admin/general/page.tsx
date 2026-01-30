@@ -7,7 +7,7 @@ import { cached, invalidate } from "@/lib/cache";
 import { useMyProfile } from "@/lib/useMyProfile";
 import { Container, Card, Title, Subtitle, PageFade, Stat, Button, Select, Input } from "@/components/ui";
 import LoadingCard from "@/components/LoadingCard";
-import { Users, ArrowLeft, CalendarDays, Trophy } from "lucide-react";
+import { Users, ArrowLeft, CalendarDays, Trophy, FileDown } from "lucide-react";
 
 type Perfil = {
   id: string;
@@ -58,6 +58,36 @@ export default function AdminGeneralPage() {
 
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
+
+  async function descargar(tipo: "xlsx" | "pdf") {
+    try {
+      if (!me) return;
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) throw new Error("Sesión inválida.");
+
+      const endpoint = tipo === "xlsx" ? "/api/export/reports/xlsx" : "/api/export/reports/pdf";
+      const params = new URLSearchParams({ from: fromDate, to: toDate });
+      const res = await fetch(`${endpoint}?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const blob = await res.blob();
+      if (!res.ok) {
+        const txt = await blob.text().catch(() => "");
+        throw new Error(txt || "No se pudo exportar.");
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `reportes-${fromDate}-a-${toDate}.${tipo}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setError(String(e?.message || "No se pudo exportar."));
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -184,7 +214,15 @@ export default function AdminGeneralPage() {
             <Subtitle>Incluye jóvenes, líderes y admins. Rango editable y ranking total.</Subtitle>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div className="flex items-center gap-2">
+              <Button onClick={() => descargar("xlsx")} className="inline-flex items-center gap-2">
+                <FileDown size={16} /> Excel
+              </Button>
+              <Button onClick={() => descargar("pdf")} variant="ghost" className="inline-flex items-center gap-2">
+                <FileDown size={16} /> PDF
+              </Button>
+            </div>
             <div className="grid gap-1">
               <div className="text-xs text-white/60">Desde</div>
               <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />

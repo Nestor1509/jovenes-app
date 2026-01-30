@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { logAuditEvent } from "@/lib/audit";
 
 type Body = { user_id: string };
 
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
     const callerId = userData.user.id;
     const { data: callerProfile, error: profErr } = await supabaseAdmin
       .from("profiles")
-      .select("role")
+      .select("role,name")
       .eq("id", callerId)
       .single();
 
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
     // Evitar que un admin elimine a otro admin por accidente.
     const { data: targetProfile, error: targetErr } = await supabaseAdmin
       .from("profiles")
-      .select("role")
+      .select("role,name")
       .eq("id", userId)
       .maybeSingle();
 
@@ -66,6 +67,16 @@ export async function POST(req: Request) {
     if (delAuthErr) {
       return NextResponse.json({ error: delAuthErr.message ?? "No se pudo eliminar la cuenta." }, { status: 400 });
     }
+
+    await logAuditEvent({
+      actor_id: callerId,
+      actor_name: (callerProfile as any)?.name ?? null,
+      action: "DELETE_USER",
+      target_type: "user",
+      target_id: userId,
+      target_name: (targetProfile as any)?.name ?? null,
+      details: { safe: true },
+    });
 
     return NextResponse.json({ ok: true });
   } catch {

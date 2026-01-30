@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import PDFDocument from "pdfkit";
 import { createUserSupabase, getBearerToken } from "@/lib/supabaseServer";
+export const runtime = "nodejs";
 
 type Row = {
   report_date: string;

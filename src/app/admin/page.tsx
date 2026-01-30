@@ -8,7 +8,7 @@ import { cached, invalidate } from "@/lib/cache";
 import { useMyProfile, Profile } from "@/lib/useMyProfile";
 import { Container, Card, Title, Subtitle, Button, Input, Select, PageFade, Stat, Skeleton, EmptyState } from "@/components/ui";
 import LoadingCard from "@/components/LoadingCard";
-import { UserPlus, Users, Layers3, RefreshCw, BarChart3, Trophy } from "lucide-react";
+import { UserPlus, Users, Layers3, RefreshCw, BarChart3, Trophy, Trash2, Pencil } from "lucide-react";
 const TopYouthBars = dynamic(() => import("@/components/charts/TopYouthBars"), { ssr: false });
 const GroupCompareBars = dynamic(() => import("@/components/charts/GroupCompareBars"), { ssr: false });
 
@@ -180,6 +180,66 @@ export default function AdminPage() {
   const [uGroup, setUGroup] = useState<string>("");
 
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
+
+  async function eliminarGrupo(groupId: string, name: string) {
+    setMsg("");
+    const token = session?.access_token;
+    if (!token) return setMsg("Sesión inválida. Inicia sesión de nuevo.");
+
+    const ok = window.confirm(
+      `¿Eliminar el grupo "${name}"?\n\nLas personas que estén en ese grupo quedarán SIN GRUPO. Esta acción no se puede deshacer.`
+    );
+    if (!ok) return;
+
+    setDeletingGroupId(groupId);
+    const res = await fetch("/api/admin/delete-group", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ group_id: groupId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(data?.error ?? "No se pudo eliminar el grupo.");
+      setDeletingGroupId(null);
+      return;
+    }
+
+    invalidate(`admin:${session!.user.id}:base`);
+    setMsg("✅ Grupo eliminado.");
+    await cargarTodo();
+    setDeletingGroupId(null);
+  }
+
+  async function eliminarPersona(userId: string, name: string) {
+    setMsg("");
+    const token = session?.access_token;
+    if (!token) return setMsg("Sesión inválida. Inicia sesión de nuevo.");
+
+    const ok = window.confirm(
+      `¿Eliminar a "${name}"?\n\nSe eliminarán también sus reportes. Esta acción no se puede deshacer.`
+    );
+    if (!ok) return;
+
+    setDeletingId(userId);
+    const res = await fetch("/api/admin/delete-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ user_id: userId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMsg(data?.error ?? "No se pudo eliminar la persona.");
+      setDeletingId(null);
+      return;
+    }
+
+    invalidate(`admin:${session!.user.id}:base`);
+    setMsg("✅ Persona eliminada.");
+    await cargarTodo();
+    setDeletingId(null);
+  }
 
   async function cargarTodo() {
     setMsg("");
@@ -532,8 +592,24 @@ export default function AdminPage() {
                     <div className="text-sm text-white/70">Aún no hay grupos.</div>
                   ) : (
                     groups.map((g) => (
-                      <div key={g.id} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm">
-                        {g.name}
+                      <div
+                        key={g.id}
+                        className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{g.name}</div>
+                          <div className="text-xs text-white/50">{g.id.slice(0, 8)}…</div>
+                        </div>
+                        <Button
+                          onClick={() => eliminarGrupo(g.id, g.name)}
+                          disabled={deletingGroupId === g.id}
+                          className="bg-white/10 hover:bg-white/15 border border-white/10 px-3 py-2"
+                          title="Eliminar grupo"
+                        >
+                          <span className="inline-flex items-center gap-2 text-xs">
+                            <Trash2 size={14} /> {deletingGroupId === g.id ? "Eliminando…" : "Eliminar"}
+                          </span>
+                        </Button>
                       </div>
                     ))
                   )}
@@ -605,7 +681,7 @@ export default function AdminPage() {
                     <th className="text-left py-3 pr-3">Nombre</th>
                     <th className="text-left py-3 pr-3">Rol</th>
                     <th className="text-left py-3 pr-3">Grupo</th>
-                    <th className="text-left py-3 pr-3">Detalle</th>
+                    <th className="text-left py-3 pr-3">Acciones</th>
                     <th className="text-left py-3 pr-3">Estado</th>
                   </tr>
                 </thead>
@@ -636,18 +712,36 @@ export default function AdminPage() {
                           </Select>
                           <div className="text-xs text-white/50 mt-1">Actual: {currentGroupName}</div>
                         </td>
-                        
-<td className="py-3 pr-3">
-  {p.role === "admin" ? (
-    <span className="text-xs text-white/40">—</span>
-  ) : (
-    <Link href={`/admin/persona/${p.id}`} className="inline-flex">
-      <span className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15 transition">
-        Ver
-      </span>
-    </Link>
-  )}
-</td>
+                        <td className="py-3 pr-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {p.role === "admin" ? (
+                              <span className="text-xs text-white/40">—</span>
+                            ) : (
+                              <>
+                                <Link href={`/admin/persona/${p.id}`} className="inline-flex">
+                                  <span className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15 transition">
+                                    Ver
+                                  </span>
+                                </Link>
+
+                                <Link href={`/admin/usuario/${p.id}/perfil`} className="inline-flex">
+                                  <span className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15 transition gap-1">
+                                    <Pencil size={12} /> Editar
+                                  </span>
+                                </Link>
+
+                                <button
+                                  onClick={() => eliminarPersona(p.id, p.name)}
+                                  disabled={deletingId === p.id}
+                                  className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-red-500/10 px-3 py-1.5 text-xs text-red-200 hover:bg-red-500/15 transition gap-1 disabled:opacity-50"
+                                  title="Eliminar persona"
+                                >
+                                  <Trash2 size={12} /> {deletingId === p.id ? "Eliminando…" : "Eliminar"}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3 pr-3">
                           {savingId === p.id ? (
                             <span className="text-xs text-white/60">Guardando…</span>

@@ -38,6 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadProfile = useCallback(async (userId: string) => {
     const cachedProfile = getCache<Profile>(`profile:${userId}`);
     if (cachedProfile) return cachedProfile;
+    if (!cached) throw new Error("Cache function is not available.");
     const { data: p, error: pErr } = await cached(
       `profile:${userId}`,
       () =>

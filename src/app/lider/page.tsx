@@ -375,7 +375,15 @@ export default function LiderPage() {
             </div>
 
             <div className="mt-4">
-              {topData.length === 0 ? <EmptyState title="Aún no hay datos" description="Cuando los jóvenes envíen reportes, verás el Top 10 aquí." /> : <TopYouthBars data={topData as any} />}
+              {topData.length === 0 ? (
+                <EmptyState
+                  title="Aún no hay datos"
+                  description="Cuando los jóvenes envíen reportes, verás el Top 10 aquí."
+                  action={<Trophy className="h-5 w-5 text-amber-400" />}
+                />
+              ) : (
+                <TopYouthBars data={topData as any} />
+              )}
             </div>
           </Card>
 

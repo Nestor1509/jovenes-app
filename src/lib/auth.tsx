@@ -30,12 +30,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState("");
 
   const loadProfile = useCallback(async (userId: string) => {
-    const { data: p, error: pErr } = await withTimeout<{ data: Profile | null; error: any }>(
+    const { data: p, error: pErr } = await withTimeout(
       supabase
         .from("profiles")
         .select("id,name,role,group_id")
         .eq("id", userId)
-        .maybeSingle() as unknown as Promise<{ data: Profile | null; error: any }>,
+        .maybeSingle(),
       8000
     );
 

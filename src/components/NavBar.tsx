@@ -75,6 +75,21 @@ export default function NavBar() {
     setMobileOpen(false);
   }, [pathname]);
 
+  // Evita scroll del contenido de fondo cuando el drawer está abierto
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const prevHtml = document.documentElement.style.overflow;
+    const prevBody = document.body.style.overflow;
+    if (mobileOpen) {
+      document.documentElement.style.overflow = "hidden";
+      document.body.style.overflow = "hidden";
+    }
+    return () => {
+      document.documentElement.style.overflow = prevHtml;
+      document.body.style.overflow = prevBody;
+    };
+  }, [mobileOpen]);
+
   async function salir() {
     await supabase.auth.signOut();
     router.push("/");
@@ -183,7 +198,7 @@ export default function NavBar() {
             <motion.button
               key="overlay"
               aria-label="Cerrar menú"
-              className="fixed inset-0 z-[60] bg-black/60"
+              className="fixed inset-0 z-[60] bg-black/75"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -191,7 +206,7 @@ export default function NavBar() {
             />
             <motion.aside
               key="drawer"
-              className="fixed right-0 top-0 z-[70] h-full w-[86vw] max-w-sm border-l border-white/10 bg-zinc-950/85 backdrop-blur-xl"
+              className="fixed right-0 top-0 z-[70] h-full w-[88vw] max-w-sm border-l border-white/10 bg-zinc-950"
               initial={{ x: 80, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 80, opacity: 0 }}
@@ -216,7 +231,9 @@ export default function NavBar() {
                         prefetch
                         className={[
                           "flex items-center justify-between gap-3 rounded-2xl px-4 py-3 border transition",
-                          active ? "bg-white/10 border-white/15" : "bg-white/5 border-white/10 hover:bg-white/10",
+                          active
+                            ? "bg-zinc-800/70 border-white/15"
+                            : "bg-zinc-900/60 border-white/10 hover:bg-zinc-800/60",
                         ].join(" ")}
                       >
                         <span className="flex items-center gap-3">
@@ -233,7 +250,7 @@ export default function NavBar() {
                   {!!session && (
                     <button
                       onClick={salir}
-                      className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 border border-white/10 bg-white/5 hover:bg-white/10 transition"
+                      className="flex items-center justify-between gap-3 rounded-2xl px-4 py-3 border border-white/10 bg-zinc-900/60 hover:bg-zinc-800/60 transition"
                     >
                       <span className="flex items-center gap-3">
                         <span className="h-10 w-10 rounded-2xl bg-white/5 border border-white/10 grid place-items-center">

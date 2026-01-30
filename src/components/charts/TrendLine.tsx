@@ -20,7 +20,7 @@ export default function TrendLine({
 }) {
   return (
     <div style={{ width: "100%", height }}>
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minHeight={height}>
         <LineChart data={data} margin={{ top: 10, right: 18, left: 0, bottom: 18 }}>
           <defs>
             <linearGradient id="tl_bible" x1="0" y1="0" x2="1" y2="0">

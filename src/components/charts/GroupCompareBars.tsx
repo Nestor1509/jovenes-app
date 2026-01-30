@@ -35,8 +35,8 @@ export default function GroupCompareBars({ data }: { data: Item[] }) {
   const max = niceMax(Math.max(...data.map((d) => Math.max(d.lectura || 0, d.oracion || 0))));
 
   return (
-    <div className="h-80 w-full">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="w-full" style={{ height: 320 }}>
+      <ResponsiveContainer width="100%" height="100%" minHeight={320}>
         <BarChart data={data} margin={{ top: 10, right: 16, left: 0, bottom: 22 }}>
           <defs>
             <linearGradient id="gcb_read" x1="0" y1="0" x2="0" y2="1">

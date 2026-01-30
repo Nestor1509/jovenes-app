@@ -39,8 +39,8 @@ export default function GroupBars({ data }: { data: Item[] }) {
   );
 
   return (
-    <div className="h-72 w-full">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="w-full" style={{ height: 288 }}>
+      <ResponsiveContainer width="100%" height="100%" minHeight={288}>
         <BarChart data={data} margin={{ top: 10, right: 16, left: 0, bottom: 22 }}>
           <defs>
             <linearGradient id="gb_read" x1="0" y1="0" x2="0" y2="1">

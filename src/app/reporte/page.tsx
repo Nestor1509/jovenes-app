@@ -66,10 +66,10 @@ export default function ReportePage() {
   const [existing, setExisting] = useState<ExistingReport | null>(null);
 
   // UX: por defecto mostramos 0 (limpio)
-  const [bibleH, setBibleH] = useState<string>("0");
-  const [bibleM, setBibleM] = useState<string>("0");
-  const [prayerH, setPrayerH] = useState<string>("0");
-  const [prayerM, setPrayerM] = useState<string>("0");
+  const [bibleH, setBibleH] = useState<string>("");
+  const [bibleM, setBibleM] = useState<string>("");
+  const [prayerH, setPrayerH] = useState<string>("");
+  const [prayerM, setPrayerM] = useState<string>("");
 
   const [msg, setMsg] = useState("");
 
@@ -109,10 +109,10 @@ export default function ReportePage() {
         // Preguntamos si quiere editar; mientras tanto no mostramos el formulario.
         setMode(locked ? "doneLocked" : "askEdit");
         // form limpio por si decide crear/editar luego
-        setBibleH("0");
-        setBibleM("0");
-        setPrayerH("0");
-        setPrayerM("0");
+        setBibleH("");
+        setBibleM("");
+        setPrayerH("");
+        setPrayerM("");
       } else {
         // No hay reporte hoy: formulario limpio (0)
         setExisting(null);
@@ -122,10 +122,10 @@ export default function ReportePage() {
           localStorage.removeItem(lockKey(dateKey));
         } catch {}
         notifyLockChanged();
-        setBibleH("0");
-        setBibleM("0");
-        setPrayerH("0");
-        setPrayerM("0");
+        setBibleH("");
+        setBibleM("");
+        setPrayerH("");
+        setPrayerM("");
       }
     })();
   }, [dateKey]);
@@ -135,10 +135,12 @@ export default function ReportePage() {
   function loadExistingIntoForm() {
     const b = fromMinutes(existing?.bible_minutes ?? 0);
     const p = fromMinutes(existing?.prayer_minutes ?? 0);
-    setBibleH(String(b.h));
-    setBibleM(String(b.m));
-    setPrayerH(String(p.h));
-    setPrayerM(String(p.m));
+
+    // UX: si el valor es 0, mostramos el input vacío (se ve más limpio que un "0" fijo)
+    setBibleH(b.h === 0 ? "" : String(b.h));
+    setBibleM(b.m === 0 ? "" : String(b.m));
+    setPrayerH(p.h === 0 ? "" : String(p.h));
+    setPrayerM(p.m === 0 ? "" : String(p.m));
   }
 
   async function save() {
@@ -325,9 +327,13 @@ export default function ReportePage() {
                           inputMode="numeric"
                           placeholder="0"
                           value={bibleH}
+                          onFocus={(e) => {
+                            if (bibleH === "0") setBibleH("");
+                            try { (e.target as HTMLInputElement).select(); } catch {}
+                          }}
                           onChange={(e) => setBibleH(onlyDigits(e.target.value))}
                           onBlur={() => {
-                            if (bibleH.trim() === "") return setBibleH("0");
+                            if (bibleH.trim() === "") return;
                             const n = clampInt(Number(bibleH), 0, 24);
                             setBibleH(String(n));
                           }}
@@ -339,9 +345,13 @@ export default function ReportePage() {
                           inputMode="numeric"
                           placeholder="0"
                           value={bibleM}
+                          onFocus={(e) => {
+                            if (bibleM === "0") setBibleM("");
+                            try { (e.target as HTMLInputElement).select(); } catch {}
+                          }}
                           onChange={(e) => setBibleM(onlyDigits(e.target.value))}
                           onBlur={() => {
-                            if (bibleM.trim() === "") return setBibleM("0");
+                            if (bibleM.trim() === "") return;
                             const n = clampInt(Number(bibleM), 0, 59);
                             setBibleM(String(n));
                           }}
@@ -363,9 +373,13 @@ export default function ReportePage() {
                           inputMode="numeric"
                           placeholder="0"
                           value={prayerH}
+                          onFocus={(e) => {
+                            if (prayerH === "0") setPrayerH("");
+                            try { (e.target as HTMLInputElement).select(); } catch {}
+                          }}
                           onChange={(e) => setPrayerH(onlyDigits(e.target.value))}
                           onBlur={() => {
-                            if (prayerH.trim() === "") return setPrayerH("0");
+                            if (prayerH.trim() === "") return;
                             const n = clampInt(Number(prayerH), 0, 24);
                             setPrayerH(String(n));
                           }}
@@ -377,9 +391,13 @@ export default function ReportePage() {
                           inputMode="numeric"
                           placeholder="0"
                           value={prayerM}
+                          onFocus={(e) => {
+                            if (prayerM === "0") setPrayerM("");
+                            try { (e.target as HTMLInputElement).select(); } catch {}
+                          }}
                           onChange={(e) => setPrayerM(onlyDigits(e.target.value))}
                           onBlur={() => {
-                            if (prayerM.trim() === "") return setPrayerM("0");
+                            if (prayerM.trim() === "") return;
                             const n = clampInt(Number(prayerM), 0, 59);
                             setPrayerM(String(n));
                           }}

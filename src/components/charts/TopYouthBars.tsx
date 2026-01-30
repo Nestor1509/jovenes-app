@@ -82,7 +82,7 @@ export default function TopYouthBars({ data }: { data: Item[] }) {
             formatter={(value: any) => [fmtValue(Number(value), isCount), isCount ? "Reportes" : "Minutos"]}
           />
 
-          <Bar dataKey="value" fill="url(#tyb_value)" radius={[12, 12, 6, 6]} maxBarSize={48} />
+          <Bar dataKey="value" fill="url(#tyb_value)" radius={[12, 12, 6, 6]} maxBarSize={48}  isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
         </BarChart>
       </ResponsiveContainer>
     </div>

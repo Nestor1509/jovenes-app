@@ -1,10 +1,17 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
+import { HTMLMotionProps, motion } from "framer-motion";
 
-export function Container({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("mx-auto w-full max-w-6xl px-4", className)} {...props} />;
+import React from "react";
+
+type Props = React.HTMLAttributes<HTMLDivElement>;
+type PageFadeProps = HTMLMotionProps<"div">;
+
+export function Container({ className, ...props }: Props) {
+  return (
+    <div className={cn("mx-auto w-full max-w-6xl px-4", className)} {...props} />
+  );
 }
 
 export function Card({
@@ -78,13 +85,20 @@ export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLS
   );
 }
 
-export function PageFade({ children }: { children: React.ReactNode }) {
+export function PageFade({ className, children, ...props }: PageFadeProps) {
   return (
-    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.22 }}
+      className={className}
+      {...props}
+    >
       {children}
     </motion.div>
   );
 }
+
 
 export function Stat({ label, value }: { label: string; value: string | number }) {
   return (

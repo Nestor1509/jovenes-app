@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body { height: 100%; }
+body { color: white; }
+
+:root {
+  --glass: rgba(255,255,255,0.06);
+  --glass2: rgba(255,255,255,0.09);
+  --border: rgba(255,255,255,0.10);
+}
+
+::selection { background: rgba(245, 158, 11, 0.35); }
+* { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.25) transparent; }
+
+@layer base {
+  body {
+    @apply bg-bg-950 text-white antialiased;
+  }
+}
+
+/* Sutil "noise" + glow para que se vea premium sin saturar */
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  background:
+    radial-gradient(60rem 40rem at 50% -10%, rgba(245,158,11,0.12), transparent 60%),
+    radial-gradient(30rem 30rem at 95% 20%, rgba(99,102,241,0.12), transparent 60%),
+    radial-gradient(30rem 30rem at 5% 85%, rgba(16,185,129,0.10), transparent 60%),
+    linear-gradient(to bottom, rgba(255,255,255,0.02), transparent 30%);
+  mix-blend-mode: screen;
+  opacity: 1;
+}
+
+body::after{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.22'/%3E%3C/svg%3E");
+  opacity: .035;
+}
+
+@layer components {
+  .glass {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(10px);
+  }
+  .glass-strong {
+    background: var(--glass2);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+  }
+  .btn-primary {
+    @apply text-zinc-950 font-semibold rounded-xl px-4 py-2 transition shadow-soft;
+    background: linear-gradient(90deg, #f59e0b, #ffd27a);
+  }
+  .btn-primary:hover {
+    filter: brightness(1.03);
+    transform: translateY(-1px);
+  }
+  .btn-ghost {
+    @apply rounded-xl px-4 py-2 border border-white/10 bg-white/5 hover:bg-white/10 transition;
+  }
+  .input {
+    @apply w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-white/20;
+  }
+  .skeleton {
+    background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.14), rgba(255,255,255,0.06));
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+}

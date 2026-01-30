@@ -2,6 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { getCache, setCache } from "@/lib/cache";
 import { cached } from "@/lib/cache";
 import type { Profile } from "@/lib/useMyProfile";
 
@@ -35,6 +36,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState("");
 
   const loadProfile = useCallback(async (userId: string) => {
+    const cachedProfile = getCache<Profile>(`profile:${userId}`);
+    if (cachedProfile) return cachedProfile;
     const { data: p, error: pErr } = await cached(
       `profile:${userId}`,
       () =>
@@ -50,7 +53,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     if (pErr) throw new Error(pErr.message);
-    return (p as Profile) ?? null;
+    const profile = (p as Profile) ?? null;
+    if (profile) setCache(`profile:${userId}`, profile, 60_000);
+    return profile;
   }, []);
 
   const refresh = useCallback(async () => {

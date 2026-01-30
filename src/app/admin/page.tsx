@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import { cached, invalidate } from "@/lib/cache";
 import { useMyProfile, Profile } from "@/lib/useMyProfile";
-import { Container, Card, Title, Subtitle, Button, Input, Select, PageFade, Stat } from "@/components/ui";
+import { Container, Card, Title, Subtitle, Button, Input, Select, PageFade, Stat, Skeleton, EmptyState } from "@/components/ui";
 import LoadingCard from "@/components/LoadingCard";
 import { UserPlus, Users, Layers3, RefreshCw, BarChart3, Trophy } from "lucide-react";
 const TopYouthBars = dynamic(() => import("@/components/charts/TopYouthBars"), { ssr: false });
@@ -344,7 +344,29 @@ export default function AdminPage() {
     );
   }
 
-  if (loading) return <LoadingCard text="Cargando panel de admin…" />;
+  if (loading)
+    return (
+      <Container>
+        <PageFade>
+          <div className="grid gap-6">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <Skeleton className="h-7 w-48" />
+                <Skeleton className="mt-2 h-4 w-72" />
+              </div>
+              <Skeleton className="h-10 w-44" />
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <Skeleton className="h-24" />
+              <Skeleton className="h-24" />
+              <Skeleton className="h-24" />
+              <Skeleton className="h-24" />
+            </div>
+            <Skeleton className="h-[360px]" />
+          </div>
+        </PageFade>
+      </Container>
+    );
 
   return (
     <Container>
@@ -434,7 +456,7 @@ export default function AdminPage() {
             </div>
 
             <div className="mt-4">
-              {topData.length === 0 ? <div className="text-sm text-white/70">Aún no hay datos para mostrar.</div> : <TopYouthBars data={topData as any} />}
+              {topData.length === 0 ? <EmptyState title="Aún no hay datos" description="Cuando haya reportes, verás el ranking aquí." /> : <TopYouthBars data={topData as any} />}
             </div>
 
             {topMetric === "reports" && (

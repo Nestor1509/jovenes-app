@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import { cached, invalidate } from "@/lib/cache";
 import { useMyProfile } from "@/lib/useMyProfile";
-import { Container, Card, Title, Subtitle, PageFade, Stat, Select } from "@/components/ui";
+import { Container, Card, Title, Subtitle, PageFade, Stat, Select, Skeleton, EmptyState } from "@/components/ui";
 import LoadingCard from "@/components/LoadingCard";
 import { Users, CalendarDays, BarChart3, Trophy, RefreshCw } from "lucide-react";
 const TopYouthBars = dynamic(() => import("@/components/charts/TopYouthBars"), { ssr: false });
@@ -238,7 +238,29 @@ export default function LiderPage() {
     );
   }
 
-  if (loading) return <LoadingCard text="Cargando panel de líder…" />;
+  if (loading)
+    return (
+      <Container>
+        <PageFade>
+          <div className="grid gap-6">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <Skeleton className="h-7 w-48" />
+                <Skeleton className="mt-2 h-4 w-72" />
+              </div>
+              <Skeleton className="h-10 w-44" />
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <Skeleton className="h-24" />
+              <Skeleton className="h-24" />
+              <Skeleton className="h-24" />
+              <Skeleton className="h-24" />
+            </div>
+            <Skeleton className="h-[360px]" />
+          </div>
+        </PageFade>
+      </Container>
+    );
 
   return (
     <Container>
@@ -353,7 +375,7 @@ export default function LiderPage() {
             </div>
 
             <div className="mt-4">
-              {topData.length === 0 ? <div className="text-sm text-white/70">Aún no hay datos para mostrar.</div> : <TopYouthBars data={topData as any} />}
+              {topData.length === 0 ? <EmptyState title="Aún no hay datos" description="Cuando los jóvenes envíen reportes, verás el Top 10 aquí." /> : <TopYouthBars data={topData as any} />}
             </div>
           </Card>
 

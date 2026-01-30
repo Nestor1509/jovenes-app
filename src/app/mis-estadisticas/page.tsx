@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-import { Container, Card, Title, Subtitle, PageFade, Stat, Button } from "@/components/ui";
+import { Container, Card, Title, Subtitle, PageFade, Stat, Button, Skeleton, EmptyState } from "@/components/ui";
 import dynamic from "next/dynamic";
 const TrendLine = dynamic(() => import("@/components/charts/TrendLine"), { ssr: false });
 
@@ -150,6 +150,27 @@ export default function MisEstadisticasPage() {
       .map(([k, v]) => ({ label: k, lectura: v.lectura, oracion: v.oracion }));
   }, [reports]);
 
+  if (loading && reports.length === 0) {
+    return (
+      <Container>
+        <PageFade>
+          <div className="grid gap-6">
+            <div>
+              <Skeleton className="h-7 w-56" />
+              <Skeleton className="mt-2 h-4 w-72" />
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <Skeleton className="h-56" />
+              <Skeleton className="h-56" />
+              <Skeleton className="h-56" />
+            </div>
+            <Skeleton className="h-[360px]" />
+          </div>
+        </PageFade>
+      </Container>
+    );
+  }
+
   return (
     <Container>
       <PageFade>
@@ -196,7 +217,7 @@ export default function MisEstadisticasPage() {
           <div className="mt-2 grid grid-cols-1 gap-4">
             <ChartCard title="Tendencia (mes a mes)" subtitle="Lectura bíblica y oración acumuladas por mes">
               {trendData.length < 2 ? (
-                <div className="text-sm text-white/70">No hay suficientes datos para graficar.</div>
+                <EmptyState title="Aún no hay suficientes datos" description="Cuando tengas más reportes, verás tu tendencia mes a mes aquí." />
               ) : (
                 <TrendLine data={trendData} />
               )}
@@ -219,7 +240,7 @@ export default function MisEstadisticasPage() {
             </Card>
           )}
 
-          {loading && <div className="text-sm text-white/70">Cargando…</div>}
+          
         </div>
       </PageFade>
     </Container>

@@ -154,19 +154,19 @@ export default function AdminPersonaDetallePage() {
   }, [rows]);
 
   const trend = useMemo(() => {
-    const map = new Map<string, { bible: number; prayer: number }>();
+    const map = new Map<string, { lectura: number; oracion: number }>();
     for (const r of rows) {
       const k = weekKey(r.report_date);
-      const cur = map.get(k) ?? { bible: 0, prayer: 0 };
-      cur.bible += Number(r.bible_minutes ?? 0);
-      cur.prayer += Number(r.prayer_minutes ?? 0);
+      const cur = map.get(k) ?? { lectura: 0, oracion: 0 };
+      cur.lectura += Number(r.bible_minutes ?? 0);
+      cur.oracion += Number(r.prayer_minutes ?? 0);
       map.set(k, cur);
     }
     const labels = Array.from(map.keys()).sort();
     return labels.map((k) => ({
       label: k.slice(5),
-      lectura: map.get(k)!.bible,
-      oracion: map.get(k)!.prayer,
+      lectura: map.get(k)!.lectura,
+      oracion: map.get(k)!.oracion,
     }));
   }, [rows]);
 
@@ -179,6 +179,11 @@ export default function AdminPersonaDetallePage() {
           <Card>
             <Title>Detalle</Title>
             <Subtitle>Inicia sesión para ver esta página.</Subtitle>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button className="bg-indigo-500/20 text-white border border-indigo-400/20 hover:bg-indigo-500/30" onClick={() => router.push(`/admin/usuario/${userId}/perfil`)}>
+                  Editar perfil
+                </Button>
+              </div>
             <div className="mt-4">
               <Button onClick={() => (window.location.href = "/")}>Ir a inicio</Button>
             </div>

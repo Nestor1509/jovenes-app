@@ -11,6 +11,8 @@ body {
 
 body {
   color: white;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   position: relative;
   /* Evita que en móvil se pueda “mover” horizontalmente la página */
   overscroll-behavior-x: none;
@@ -87,5 +89,15 @@ body::before{
     background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.14), rgba(255,255,255,0.06));
     background-size: 200% 100%;
     animation: shimmer 1.6s linear infinite;
+  }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }

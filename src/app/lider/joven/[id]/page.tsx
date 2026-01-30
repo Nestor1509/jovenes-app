@@ -168,19 +168,19 @@ export default function LiderJovenDetallePage() {
   }, [rows]);
 
   const trend = useMemo(() => {
-    const map = new Map<string, { lectura: number; oracion: number }>();
+    const map = new Map<string, { bible: number; prayer: number }>();
     for (const r of rows) {
       const k = weekKey(r.report_date);
-      const cur = map.get(k) ?? { lectura: 0, oracion: 0 };
-      cur.lectura += Number(r.bible_minutes ?? 0);
-      cur.oracion += Number(r.prayer_minutes ?? 0);
+      const cur = map.get(k) ?? { bible: 0, prayer: 0 };
+      cur.bible += Number(r.bible_minutes ?? 0);
+      cur.prayer += Number(r.prayer_minutes ?? 0);
       map.set(k, cur);
     }
     const labels = Array.from(map.keys()).sort();
     return labels.map((k) => ({
       label: k.slice(5), // MM-DD
-      lectura: map.get(k)!.lectura,
-      oracion: map.get(k)!.oracion,
+      bible: map.get(k)!.bible,
+      prayer: map.get(k)!.prayer,
     }));
   }, [rows]);
 
@@ -278,7 +278,11 @@ export default function LiderJovenDetallePage() {
                   {trend.length < 2 ? (
                     <div className="text-sm text-white/70">No hay suficientes datos para mostrar la tendencia.</div>
                   ) : (
-                    <TrendLine data={trend} />
+                    <TrendLine data={trend.map(t => ({
+                      label: t.label,
+                      lectura: t.bible,
+                      oracion: t.prayer,
+                    }))} />
                   )}
                 </div>
               </Card>

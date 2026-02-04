@@ -65,3 +65,17 @@ Si ves errores como **"infinite recursion detected in policy for relation \"prof
 - Admin: `/admin/persona/[id]`
 
 En ambas puedes filtrar por rango y ver tendencia semanal + historial.
+
+### 4) Registro manual + Google
+
+La pantalla de inicio ahora permite:
+
+- **Registrarse** (correo + contraseña + nombre)
+- **Entrar con Google** (OAuth)
+
+**Regla:** todo usuario nuevo que inicie sesión por primera vez (incluido Google) crea automáticamente su fila en `profiles` con `role = 'youth'`.
+
+Para habilitar Google en Supabase:
+
+1) En **Authentication → Providers → Google**, activa el proveedor y configura Client ID/Secret.
+2) Agrega el dominio a **Redirect URLs** (por ejemplo: `http://localhost:3000` y tu dominio de producción).

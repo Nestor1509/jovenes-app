@@ -17,6 +17,9 @@ function traducirError(msg: string) {
 export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [busy, setBusy] = useState(false);
 
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
@@ -37,8 +40,54 @@ export default function Home() {
     e.preventDefault();
     setMsg("");
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setMsg(traducirError(error.message));
+    try {
+      setBusy(true);
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) setMsg(traducirError(error.message));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signUp(e: React.FormEvent) {
+    e.preventDefault();
+    setMsg("");
+    try {
+      setBusy(true);
+      if (!name.trim()) return setMsg("Escribe tu nombre.");
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { name: name.trim() } },
+      });
+      if (error) return setMsg(traducirError(error.message));
+
+      // Si Supabase tiene confirmación por correo activada, el usuario tendrá que confirmar.
+      // El perfil se crea automáticamente al iniciar sesión por primera vez.
+      if (!data.session) {
+        setMsg("✅ Listo. Revisa tu correo para confirmar y luego inicia sesión.");
+      } else {
+        setMsg("✅ Registro completado. Ya puedes usar la app.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signInGoogle() {
+    setMsg("");
+    try {
+      setBusy(true);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+      if (error) setMsg(traducirError(error.message));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -87,38 +136,79 @@ export default function Home() {
           <Card>
             <Title>{sessionEmail ? "Listo para continuar" : "Iniciar sesión"}</Title>
             <Subtitle>
-              {sessionEmail ? "Usa el menú superior." : "Ingresa con el correo y contraseña que te dio el admin."}
+              {sessionEmail ? "Usa el menú superior." : "Puedes ingresar con correo/contraseña o registrarte."}
             </Subtitle>
 
             {!sessionEmail ? (
-              <form onSubmit={signIn} className="mt-5 grid gap-3">
-                <div>
-                  <div className="text-xs text-white/60 mb-1">Correo</div>
-                  <Input
-                    placeholder="correo@ejemplo.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                  />
+              <div className="mt-5 grid gap-3">
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    className={mode === "login" ? "bg-white/90 hover:bg-white text-zinc-900" : "bg-white/10 text-white border border-white/10 hover:bg-white/15"}
+                    onClick={() => setMode("login")}
+                    disabled={busy}
+                  >
+                    Iniciar sesión
+                  </Button>
+                  <Button
+                    type="button"
+                    className={mode === "register" ? "bg-white/90 hover:bg-white text-zinc-900" : "bg-white/10 text-white border border-white/10 hover:bg-white/15"}
+                    onClick={() => setMode("register")}
+                    disabled={busy}
+                  >
+                    Registrarme
+                  </Button>
                 </div>
 
-                <div>
-                  <div className="text-xs text-white/60 mb-1">Contraseña</div>
-                  <Input
-                    placeholder="••••••••"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="current-password"
-                  />
-                </div>
-
-                <Button type="submit" className="mt-2">
-                  Entrar
+                <Button type="button" onClick={signInGoogle} disabled={busy} className="inline-flex gap-2">
+                  Entrar con Google
                 </Button>
 
-                {msg && <p className="text-sm text-red-300">{msg}</p>}
-              </form>
+                {mode === "register" && (
+                  <div>
+                    <div className="text-xs text-white/60 mb-1">Nombre</div>
+                    <Input
+                      placeholder="Nombre y apellido"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      autoComplete="name"
+                    />
+                  </div>
+                )}
+
+                <form onSubmit={mode === "login" ? signIn : signUp} className="grid gap-3">
+                  <div>
+                    <div className="text-xs text-white/60 mb-1">Correo</div>
+                    <Input
+                      placeholder="correo@ejemplo.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="text-xs text-white/60 mb-1">Contraseña</div>
+                    <Input
+                      placeholder="••••••••"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete={mode === "login" ? "current-password" : "new-password"}
+                    />
+                  </div>
+
+                  <Button type="submit" className="mt-2" disabled={busy}>
+                    {busy ? "Procesando…" : mode === "login" ? "Entrar" : "Crear cuenta"}
+                  </Button>
+
+                  {msg && (
+                    <p className={msg.startsWith("✅") ? "text-sm text-green-300" : "text-sm text-red-300"}>
+                      {msg}
+                    </p>
+                  )}
+                </form>
+              </div>
             ) : (
               <div className="mt-5 text-sm text-white/70">
                 Navega con el menú superior (Reporte, Mis estadísticas, Público, etc.).

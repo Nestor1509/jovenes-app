@@ -180,6 +180,7 @@ export default function AdminPage() {
   const [uGroup, setUGroup] = useState<string>("");
 
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [savingRoleId, setSavingRoleId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
 
@@ -361,6 +362,20 @@ export default function AdminPage() {
     }
 
     setSavingId(null);
+  }
+
+  async function actualizarRolUsuario(userId: string, newRole: "youth" | "leader" | "admin") {
+    setMsg("");
+    setSavingRoleId(userId);
+
+    const { error } = await supabase.from("profiles").update({ role: newRole }).eq("id", userId);
+    if (error) setMsg(traducirError(error.message));
+    else {
+      setMsg("✅ Rol actualizado.");
+      setProfiles((prev) => prev.map((p) => (p.id === userId ? { ...p, role: newRole } : p)));
+    }
+
+    setSavingRoleId(null);
   }
 
   if (authLoading) return <LoadingCard text="Cargando sesión…" />;
@@ -696,7 +711,18 @@ export default function AdminPage() {
                           <div className="font-medium">{p.name}</div>
                           <div className="text-xs text-white/50">{p.id.slice(0, 8)}…</div>
                         </td>
-                        <td className="py-3 pr-3">{rolBonito}</td>
+                        <td className="py-3 pr-3">
+                          <Select
+                            value={p.role}
+                            disabled={savingRoleId === p.id}
+                            onChange={(e) => actualizarRolUsuario(p.id, e.target.value as any)}
+                          >
+                            <option value="youth">Joven</option>
+                            <option value="leader">Líder</option>
+                            <option value="admin">Admin</option>
+                          </Select>
+                          <div className="text-xs text-white/50 mt-1">Actual: {rolBonito}</div>
+                        </td>
                         <td className="py-3 pr-3">
                           <Select
                             value={p.group_id ?? ""}
@@ -714,36 +740,34 @@ export default function AdminPage() {
                         </td>
                         <td className="py-3 pr-3">
                           <div className="flex items-center gap-2 flex-wrap">
+                            <Link href={`/admin/persona/${p.id}`} className="inline-flex">
+                              <span className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15 transition">
+                                Ver
+                              </span>
+                            </Link>
+
+                            <Link href={`/admin/usuario/${p.id}/perfil`} className="inline-flex">
+                              <span className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15 transition gap-1">
+                                <Pencil size={12} /> Editar
+                              </span>
+                            </Link>
+
                             {p.role === "admin" ? (
-                              <span className="text-xs text-white/40">—</span>
+                              <span className="text-xs text-white/40">No se elimina admin</span>
                             ) : (
-                              <>
-                                <Link href={`/admin/persona/${p.id}`} className="inline-flex">
-                                  <span className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15 transition">
-                                    Ver
-                                  </span>
-                                </Link>
-
-                                <Link href={`/admin/usuario/${p.id}/perfil`} className="inline-flex">
-                                  <span className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15 transition gap-1">
-                                    <Pencil size={12} /> Editar
-                                  </span>
-                                </Link>
-
-                                <button
-                                  onClick={() => eliminarPersona(p.id, p.name)}
-                                  disabled={deletingId === p.id}
-                                  className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-red-500/10 px-3 py-1.5 text-xs text-red-200 hover:bg-red-500/15 transition gap-1 disabled:opacity-50"
-                                  title="Eliminar persona"
-                                >
-                                  <Trash2 size={12} /> {deletingId === p.id ? "Eliminando…" : "Eliminar"}
-                                </button>
-                              </>
+                              <button
+                                onClick={() => eliminarPersona(p.id, p.name)}
+                                disabled={deletingId === p.id}
+                                className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-red-500/10 px-3 py-1.5 text-xs text-red-200 hover:bg-red-500/15 transition gap-1 disabled:opacity-50"
+                                title="Eliminar persona"
+                              >
+                                <Trash2 size={12} /> {deletingId === p.id ? "Eliminando…" : "Eliminar"}
+                              </button>
                             )}
                           </div>
                         </td>
                         <td className="py-3 pr-3">
-                          {savingId === p.id ? (
+                          {savingId === p.id || savingRoleId === p.id ? (
                             <span className="text-xs text-white/60">Guardando…</span>
                           ) : (
                             <span className="text-xs text-white/40">—</span>

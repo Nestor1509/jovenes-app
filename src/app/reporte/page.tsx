@@ -92,19 +92,38 @@ export default function ReportePage() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from("reports")
-        .select("bible_minutes, prayer_minutes, chapters_count, bible_chapters, prayer_topic")
-        .eq("user_id", sess.session.user.id)
-        .eq("report_date", dateKey)
-        .maybeSingle();
+      // Cargamos el reporte del día. Primero intentamos con el esquema nuevo (chapters_detail),
+// si falla porque la columna no existe, hacemos fallback al esquema viejo (bible_chapters).
+let data: any = null;
+let error: any = null;
+
+const primary = await supabase
+  .from("reports")
+  .select("bible_minutes, prayer_minutes, chapters_count, chapters_detail, prayer_topic")
+  .eq("user_id", sess.session.user.id)
+  .eq("report_date", dateKey)
+  .maybeSingle();
+
+data = primary.data;
+error = primary.error;
+
+if (error && String(error.message || "").includes("chapters_detail")) {
+  const fallback = await supabase
+    .from("reports")
+    .select("bible_minutes, prayer_minutes, chapters_count, bible_chapters, prayer_topic")
+    .eq("user_id", sess.session.user.id)
+    .eq("report_date", dateKey)
+    .maybeSingle();
+  data = fallback.data;
+  error = fallback.error;
+}
 
       if (!error && data) {
         setExisting({
           bible_minutes: data.bible_minutes ?? 0,
           prayer_minutes: data.prayer_minutes ?? 0,
           chapters_count: (data as any).chapters_count ?? null,
-          bible_chapters: (data as any).bible_chapters ?? null,
+          bible_chapters: (data as any).chapters_detail ?? (data as any).bible_chapters ?? null,
           prayer_topic: (data as any).prayer_topic ?? null,
         });
         // Si el usuario ya dijo que NO quiere editar hoy, no volvemos a preguntar
@@ -180,25 +199,46 @@ export default function ReportePage() {
     const bible_chapters = bibleChapters.trim() === "" ? null : bibleChapters.trim();
     const prayer_topic = prayerTopic.trim() === "" ? null : prayerTopic.trim();
 
-    const { error } = await supabase.from("reports").upsert(
-      {
-        user_id: user.id,
-        report_date: today,
-        bible_minutes,
-        prayer_minutes,
-        chapters_count,
-        bible_chapters,
-        prayer_topic,
-      },
-      { onConflict: "user_id,report_date" }
-    );
+    let upsertError: any = null;
+// Intentamos guardar con la columna "chapters_detail" (nuevo esquema).
+// Si en tu BD todavía existe "bible_chapters", hacemos fallback automático.
+const primary = await supabase.from("reports").upsert(
+  {
+    user_id: user.id,
+    report_date: today,
+    bible_minutes,
+    prayer_minutes,
+    chapters_count,
+    chapters_detail: bible_chapters,
+    prayer_topic,
+  },
+  { onConflict: "user_id,report_date" }
+);
 
-    if (error) {
-      setMsg(traducirError(error.message));
+upsertError = primary.error;
+
+if (upsertError && String(upsertError.message || "").includes('chapters_detail')) {
+  const fallback = await supabase.from("reports").upsert(
+    {
+      user_id: user.id,
+      report_date: today,
+      bible_minutes,
+      prayer_minutes,
+      chapters_count,
+      bible_chapters,
+      prayer_topic,
+    } as any,
+    { onConflict: "user_id,report_date" }
+  );
+  upsertError = fallback.error;
+}
+
+if (upsertError) {
+      setMsg(traducirError(upsertError.message));
       return;
     }
 
-    setExisting({ bible_minutes, prayer_minutes, chapters_count, bible_chapters, prayer_topic });
+    setExisting({ bible_minutes, prayer_minutes, chapters_count, chapters_detail: bible_chapters, prayer_topic });
     try {
       localStorage.removeItem(lockKey(dateKey));
     } catch {}

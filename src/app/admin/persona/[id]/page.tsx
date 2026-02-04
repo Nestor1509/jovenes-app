@@ -8,7 +8,7 @@ import { cached } from "@/lib/cache";
 import { useMyProfile, Profile } from "@/lib/useMyProfile";
 import { Container, Card, Title, Subtitle, PageFade, Stat, Button, Input } from "@/components/ui";
 import LoadingCard from "@/components/LoadingCard";
-import { ArrowLeft, CalendarDays, RefreshCw } from "lucide-react";
+import { ArrowLeft, CalendarDays, RefreshCw, Trash2 } from "lucide-react";
 const TrendLine = dynamicImport(() => import("@/components/charts/TrendLine"), { ssr: false });
 
 
@@ -68,6 +68,32 @@ export default function AdminPersonaDetallePage() {
 
   const [person, setPerson] = useState<Profile | null>(null);
   const [rows, setRows] = useState<ReportRow[]>([]);
+
+async function borrarReporte(report_date: string) {
+  if (!session) return;
+  if (!confirm(`¿Borrar el reporte del ${report_date}? Esta acción no se puede deshacer.`)) return;
+
+  try {
+    const token = session.access_token;
+    const res = await fetch("/api/admin/delete-report", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ user_id: userId, report_date }),
+    });
+
+    const json = await res.json().catch(() => ({} as any));
+    if (!res.ok) throw new Error(json?.error || "No se pudo borrar el reporte.");
+
+    // Remueve de la tabla sin recargar
+    setRows((prev) => prev.filter((r) => r.report_date !== report_date));
+  } catch (e: any) {
+    alert(traducirError(e?.message || ""));
+  }
+}
+
 
   const today = useMemo(() => isoToday(), []);
   const [from, setFrom] = useState(minusDays(today, 30));
@@ -284,6 +310,7 @@ export default function AdminPersonaDetallePage() {
                         <th className="text-left py-2 pr-3">Fecha</th>
                         <th className="text-left py-2 pr-3">Lectura</th>
                         <th className="text-left py-2 pr-3">Oración</th>
+                        <th className="text-right py-2">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -292,11 +319,16 @@ export default function AdminPersonaDetallePage() {
                           <td className="py-2 pr-3">{r.report_date}</td>
                           <td className="py-2 pr-3">{fmtMinutes(Number(r.bible_minutes ?? 0))}</td>
                           <td className="py-2 pr-3">{fmtMinutes(Number(r.prayer_minutes ?? 0))}</td>
+                          <td className="py-2 text-right">
+                            <Button variant="ghost" className="text-red-300 hover:text-red-200" onClick={() => borrarReporte(r.report_date)}>
+                              <Trash2 size={16} className="mr-1" /> Borrar
+                            </Button>
+                          </td>
                         </tr>
                       ))}
                       {rows.length === 0 && (
                         <tr>
-                          <td className="py-3 text-white/70" colSpan={3}>No hay reportes en este rango.</td>
+                          <td className="py-3 text-white/70" colSpan={4}>No hay reportes en este rango.</td>
                         </tr>
                       )}
                     </tbody>

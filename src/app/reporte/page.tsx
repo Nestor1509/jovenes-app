@@ -209,7 +209,7 @@ const primary = await supabase.from("reports").upsert(
     bible_minutes,
     prayer_minutes,
     chapters_count,
-    chapters_detail: bible_chapters,
+    bible_chapters,
     prayer_topic,
   },
   { onConflict: "user_id,report_date" }
@@ -238,7 +238,7 @@ if (upsertError) {
       return;
     }
 
-    setExisting({ bible_minutes, prayer_minutes, chapters_count, chapters_detail: bible_chapters, prayer_topic });
+    setExisting({ bible_minutes, prayer_minutes, chapters_count, bible_chapters, prayer_topic });
     try {
       localStorage.removeItem(lockKey(dateKey));
     } catch {}

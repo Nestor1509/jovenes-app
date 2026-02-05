@@ -1,25 +1,28 @@
 "use client";
 
+import React, { ComponentPropsWithoutRef } from "react";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { HTMLMotionProps, motion } from "framer-motion";
 
-import React from "react";
+type DivProps = React.HTMLAttributes<HTMLDivElement>;
 
-type Props = React.HTMLAttributes<HTMLDivElement>;
-type PageFadeProps = HTMLMotionProps<"div">;
+export function Container({ className, ...props }: DivProps) {
+  return <div className={cn("mx-auto w-full max-w-6xl px-4", className)} {...props} />;
+}
 
-export function Container({ className, ...props }: Props) {
+export function PageFade({ className, ...props }: ComponentPropsWithoutRef<typeof motion.div>) {
   return (
-    <div className={cn("mx-auto w-full max-w-6xl px-4", className)} {...props} />
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18 }}
+      className={cn(className)}
+      {...props}
+    />
   );
 }
 
-export function Card({
-  className,
-  children,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement> & { className?: string; children: React.ReactNode }) {
-  const { onDrag, onDragStart, onDragEnd, ...safeProps } = props as any;
+export function Card({ className, ...props }: ComponentPropsWithoutRef<typeof motion.div>) {
   return (
     <motion.div
       whileHover={{ y: -2 }}
@@ -28,131 +31,141 @@ export function Card({
         "glass rounded-2xl p-5 shadow-glow transition will-change-transform hover:bg-white/[0.07] hover:border-white/15",
         className
       )}
-      {...safeProps}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-
-export function Title({ className, children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return (
-    <h1 className={cn("text-2xl font-semibold tracking-tight", className)} {...props}>
-      {children}
-    </h1>
-  );
-}
-
-export function Subtitle({ className, children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return (
-    <p className={cn("text-sm text-white/70 leading-relaxed", className)} {...props}>
-      {children}
-    </p>
-  );
-}
-
-type BtnVariant = "primary" | "ghost" | "subtle";
-
-export function Button({
-  className,
-  variant = "primary",
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: BtnVariant }) {
-  const base =
-    "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60 focus-visible:ring-offset-0-semibold transition focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-60 disabled:cursor-not-allowed";
-  const styles: Record<BtnVariant, string> = {
-    primary: "btn-primary text-zinc-950",
-    ghost: "btn-ghost text-white",
-    subtle: "rounded-xl px-4 py-2 text-sm font outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60 focus-visible:ring-offset-0-semibold bg-white/5 border border-white/10 hover:bg-white/10",
-  };
-
-  const { onDrag, onDragStart, onDragEnd, ...safeProps } = props as any;
-
-  return (
-    <motion.button
-      whileTap={{ scale: 0.98 }}
-      transition={{ type: "spring", stiffness: 500, damping: 30 }}
-      className={cn(base, styles[variant], "active:translate-y-[0.5px]", className)}
-      {...safeProps}
+      {...props}
     />
   );
 }
 
+export function Title({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
+  return <h1 className={cn("text-2xl font-semibold tracking-tight", className)} {...props} />;
+}
+
+export function Subtitle({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
+  return <p className={cn("text-white/70", className)} {...props} />;
+}
+
+export function Badge({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-xs text-white/80",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+type ButtonVariant = "primary" | "ghost" | "danger";
+
+type ButtonProps = ComponentPropsWithoutRef<typeof motion.button> & {
+  /**
+   * Visual style of the button (not related to framer-motion `variants`).
+   */
+  variant?: ButtonVariant;
+};
+
+export function Button({ className, variant = "primary", ...props }: ButtonProps) {
+  const base =
+    "inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50";
+
+  const variants: Record<ButtonVariant, string> = {
+    primary:
+      "border-white/10 bg-white/[0.06] text-white hover:bg-white/[0.09]",
+    ghost:
+      "border-transparent bg-transparent text-white/90 hover:bg-white/[0.06]",
+    danger:
+      "border-red-500/30 bg-red-500/15 text-red-100 hover:bg-red-500/25",
+  };
+
+  return (
+    <motion.button
+      whileTap={{ scale: 0.98 }}
+      className={cn(base, variants[variant], className)}
+      {...props}
+    />
+  );
+}
 
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn("input", className)} {...props} />;
+  return (
+    <input
+      className={cn(
+        "w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-white/20 focus:bg-white/[0.06]",
+        className
+      )}
+      {...props}
+    />
+  );
 }
 
 export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={cn("input pr-8 transition-colors hover:border-white/20 focus:border-amber-400/40", className)}
+      className={cn(
+        "w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none transition focus:border-white/20 focus:bg-white/[0.06]",
+        className
+      )}
       {...props}
     />
   );
 }
 
-export function PageFade({ className, children, ...props }: PageFadeProps) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22 }}
-      className={className}
-      {...props}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-
-export function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="glass rounded-2xl p-4 shadow-soft">
-      <div className="text-xs text-white/60">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tracking-tight">{value}</div>
-    </div>
-  );
-}
-
-export function Badge({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <span className={cn("inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/80", className)}>{children}</span>;
-}
-
-export function Divider({ className }: { className?: string }) {
-  return <div className={cn("h-px w-full bg-white/10", className)} />;
-}
-
-
-export function Skeleton({ className }: { className?: string }) {
+export function Skeleton({ className, ...props }: DivProps) {
   return (
     <div
-      className={cn(
-        "animate-pulse rounded-2xl bg-white/10",
-        className
-      )}
+      className={cn("animate-pulse rounded-xl bg-white/[0.06]", className)}
+      aria-hidden="true"
+      {...props}
     />
   );
 }
 
 export function EmptyState({
-  title = "Sin datos",
-  description = "Aún no hay información para mostrar.",
+  title,
+  description,
   action,
+  icon,
+  className,
+  children,
 }: {
   title?: string;
   description?: string;
   action?: React.ReactNode;
+  icon?: React.ReactNode;
+  className?: string;
+  children?: React.ReactNode;
 }) {
   return (
-    <Card className="p-6">
-      <div className="space-y-2">
-        <Title className="text-lg">{title}</Title>
-        <Subtitle>{description}</Subtitle>
-        {action ? <div className="pt-2">{action}</div> : null}
-      </div>
-    </Card>
+    <div className={cn("rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center", className)}>
+      {icon ? <div className="mx-auto mb-3 flex justify-center">{icon}</div> : null}
+      {title ? <div className="text-base font-semibold">{title}</div> : null}
+      {description ? <div className="mt-1 text-sm text-white/60">{description}</div> : null}
+      {children ? <div className="mt-4">{children}</div> : null}
+      {action ? <div className="mt-4 flex justify-center">{action}</div> : null}
+    </div>
+  );
+}
+
+
+export function Stat({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border border-white/10 bg-white/[0.03] p-4",
+        className
+      )}
+    >
+      <div className="text-xs text-white/60">{label}</div>
+      <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
+    </div>
   );
 }

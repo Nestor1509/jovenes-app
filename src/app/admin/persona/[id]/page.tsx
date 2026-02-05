@@ -344,3 +344,7 @@ async function borrarReporte(report_date: string) {
     </Container>
   );
 }
+
+function traducirError(arg0: any): any {
+  throw new Error("Function not implemented.");
+}

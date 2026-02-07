@@ -10,6 +10,13 @@ import { KeyRound, User2, ArrowLeft } from "lucide-react";
 
 type TargetProfile = { id: string; name: string; role: string; group_id: string | null };
 
+const { error } = await supabase.auth.signInWithOAuth({
+  provider: "google",
+  options: {
+    redirectTo: `${window.location.origin}/auth/callback`,
+  },
+});
+
 export default function AdminUserPerfilPage() {
   const params = useParams<{ id: string }>();
   const userId = params?.id;

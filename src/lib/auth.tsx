@@ -14,11 +14,11 @@ type AuthCtx = {
 };
 
 
-function withTimeout<T extends { data: any; error: any }>(p: Promise<T>, ms = 8000, msg = "Tiempo de espera agotado. Revisa tu conexión o Supabase.") {
-  return Promise.race([
-    p,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(msg)), ms)),
-  ]);
+// Supabase PostgrestBuilder es thenable (PromiseLike), pero TS a veces no lo trata como Promise.
+// Esto lo hace compatible con Promise, PromiseLike y builders de Supabase.
+function withTimeout<T>(value: any, ms = 8000, msg = "Tiempo de espera agotado. Revisa tu conexión o Supabase.") : Promise<{ data: T; error: any }> {
+  const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error(msg)), ms));
+  return Promise.race([Promise.resolve(value) as Promise<{ data: T; error: any }>, timeout]);
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -33,10 +33,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: p, error: pErr } = await withTimeout(
       Promise.resolve(
         supabase
-          .from("profiles")
-          .select("id,name,role,group_id")
-          .eq("id", userId)
-          .maybeSingle()
+        .from("profiles")
+        .select("id,name,role,group_id")
+        .eq("id", userId)
+        .maybeSingle()
       ),
       8000
     );
@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError("");
     try {
-      const { data: sess, error: sErr } = await withTimeout(supabase.auth.getSession(), 8000);
+      const { data: sess, error: sErr } = await withTimeout<{ session: any }>(supabase.auth.getSession(), 8000);
       if (sErr) throw new Error(sErr.message);
 
       const s = sess.session ?? null;

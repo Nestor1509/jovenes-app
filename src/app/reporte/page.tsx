@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Container, Card, Title, Subtitle, Button, Input, PageFade } from "@/components/ui";
-import { BookOpen, CheckCircle2, Clock3, PencilLine } from "lucide-react";
+import { BookOpen, CheckCircle2, Clock3, HeartHandshake, PencilLine } from "lucide-react";
 
 function todayISO() {
   const d = new Date();
@@ -64,9 +64,9 @@ export default function ReportePage() {
   const [mode, setMode] = useState<Mode>("loading");
   const [existing, setExisting] = useState<ExistingReport | null>(null);
 
-  const [chapters, setChapters] = useState<string>("0");
-  const [prayerH, setPrayerH] = useState<string>("0");
-  const [prayerM, setPrayerM] = useState<string>("0");
+  const [chapters, setChapters] = useState<string>("" );
+  const [prayerH, setPrayerH] = useState<string>("" );
+  const [prayerM, setPrayerM] = useState<string>("" );
 
   const [msg, setMsg] = useState("");
 
@@ -104,9 +104,9 @@ export default function ReportePage() {
 
         setMode(locked ? "doneLocked" : "askEdit");
 
-        setChapters("0");
-        setPrayerH("0");
-        setPrayerM("0");
+        setChapters("");
+        setPrayerH("");
+        setPrayerM("");
       } else {
         setExisting(null);
         setMode("new");
@@ -115,9 +115,9 @@ export default function ReportePage() {
         } catch {}
         notifyLockChanged();
 
-        setChapters("0");
-        setPrayerH("0");
-        setPrayerM("0");
+        setChapters("");
+        setPrayerH("");
+        setPrayerM("");
       }
     })();
   }, [dateKey]);
@@ -262,30 +262,108 @@ export default function ReportePage() {
             </Card>
           ) : (
             <Card>
-              <div className="grid gap-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <div className="text-xs text-white/60 mb-1">Capítulos leídos</div>
-                    <Input inputMode="numeric" value={chapters} onChange={(e) => setChapters(onlyDigits(e.target.value))} placeholder="0" />
+              <div className="grid gap-5">
+                <div className="flex items-center gap-2 text-sm text-white/70">
+                  <Clock3 size={16} />
+                  <span>Fecha</span>
+                </div>
+
+                <Input type="date" value={today} disabled className="max-w-xs opacity-70 cursor-not-allowed" />
+
+                <div className="text-xs text-white/50">Solo puedes reportar el día de hoy. (La base de datos también lo valida.)</div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-center gap-2 font-medium">
+                      <BookOpen size={18} className="opacity-80" />
+                      Lectura bíblica
+                    </div>
+
+                    <div className="mt-3">
+                      <div className="text-xs text-white/60 mb-1">Capítulos leídos</div>
+                      <Input
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={chapters}
+                        onFocus={(e) => {
+                          if (chapters === "0") setChapters("");
+                          try { (e.target as HTMLInputElement).select(); } catch {}
+                        }}
+                        onChange={(e) => setChapters(onlyDigits(e.target.value))}
+                        onBlur={() => {
+                          if (chapters.trim() === "") return;
+                          const n = clampInt(Number(chapters), 0, 500);
+                          setChapters(String(n));
+                        }}
+                      />
+                    </div>
+
+                    <div className="mt-3 text-xs text-white/50">Nota: la lectura se registra por <b>cantidad de capítulos</b>.</div>
                   </div>
 
-                  <div>
-                    <div className="text-xs text-white/60 mb-1">Oración</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input inputMode="numeric" value={prayerH} onChange={(e) => setPrayerH(onlyDigits(e.target.value))} placeholder="Horas" />
-                      <Input inputMode="numeric" value={prayerM} onChange={(e) => setPrayerM(onlyDigits(e.target.value))} placeholder="Minutos" />
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-center gap-2 font-medium">
+                      <HeartHandshake size={18} className="opacity-80" />
+                      Tiempo de oración
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-xs text-white/60 mb-1">Horas</div>
+                        <Input
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={prayerH}
+                          onFocus={(e) => {
+                            if (prayerH === "0") setPrayerH("");
+                            try { (e.target as HTMLInputElement).select(); } catch {}
+                          }}
+                          onChange={(e) => setPrayerH(onlyDigits(e.target.value))}
+                          onBlur={() => {
+                            if (prayerH.trim() === "") return;
+                            const n = clampInt(Number(prayerH), 0, 24);
+                            setPrayerH(String(n));
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <div className="text-xs text-white/60 mb-1">Minutos</div>
+                        <Input
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={prayerM}
+                          onFocus={(e) => {
+                            if (prayerM === "0") setPrayerM("");
+                            try { (e.target as HTMLInputElement).select(); } catch {}
+                          }}
+                          onChange={(e) => setPrayerM(onlyDigits(e.target.value))}
+                          onBlur={() => {
+                            if (prayerM.trim() === "") return;
+                            const n = clampInt(Number(prayerM), 0, 59);
+                            setPrayerM(String(n));
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex flex-wrap items-center gap-3">
                   <Button variant="primary" onClick={save}>
-                    Guardar
+                    {mode === "editing" ? "Guardar cambios" : "Guardar"}
                   </Button>
-                </div>
 
-                <div className="text-xs text-white/50">
-                  Nota: la lectura se registra por <span className="text-white/70">cantidad de capítulos</span>.
+                  {mode === "editing" && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setMode("done");
+                        setMsg("");
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                  )}
                 </div>
               </div>
             </Card>

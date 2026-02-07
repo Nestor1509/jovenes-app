@@ -127,7 +127,8 @@ export default function LiderPage() {
       if (!token) throw new Error("Sesión inválida.");
 
       const { from, to } = rangeFromSelection();
-      const endpoint = tipo === "xlsx" ? "/api/export/reports/xlsx" : "/api/export/reports/pdf";
+      // Solo exportación Excel/CSV (PDF removido)
+      const endpoint = "/api/export/reports/xlsx";
       const params = new URLSearchParams({ from, to });
       const res = await fetch(`${endpoint}?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },

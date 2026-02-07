@@ -65,7 +65,8 @@ export default function AdminGeneralPage() {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       if (!token) throw new Error("Sesión inválida.");
 
-      const endpoint = tipo === "xlsx" ? "/api/export/reports/xlsx" : "/api/export/reports/pdf";
+      // Solo exportación Excel/CSV (PDF removido)
+      const endpoint = "/api/export/reports/xlsx";
       const params = new URLSearchParams({ from: fromDate, to: toDate });
       const res = await fetch(`${endpoint}?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },

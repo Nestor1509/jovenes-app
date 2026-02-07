@@ -14,7 +14,7 @@ type AuthCtx = {
 };
 
 
-function withTimeout<T>(p: Promise<T>, ms = 8000, msg = "Tiempo de espera agotado. Revisa tu conexión o Supabase."): Promise<T> {
+function withTimeout<T>(p: Promise<T>, ms = 8000, msg = "Tiempo de espera agotado. Revisa tu conexión o Supabase.") {
   return Promise.race([
     p,
     new Promise<T>((_, reject) => setTimeout(() => reject(new Error(msg)), ms)),

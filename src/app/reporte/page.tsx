@@ -62,11 +62,11 @@ export default function ReportePage() {
   const [existing, setExisting] = useState<ExistingReport | null>(null);
 
   // ✅ Nuevo: capítulos (sin tiempo de lectura)
-  const [chapters, setChapters] = useState<string>("0");
+  const [chapters, setChapters] = useState<string>("");
 
   // Oración (igual que antes)
-  const [prayerH, setPrayerH] = useState<string>("0");
-  const [prayerM, setPrayerM] = useState<string>("0");
+  const [prayerH, setPrayerH] = useState<string>("");
+  const [prayerM, setPrayerM] = useState<string>("");
 
   const [msg, setMsg] = useState("");
 
@@ -103,9 +103,9 @@ export default function ReportePage() {
         })();
 
         setMode(locked ? "doneLocked" : "askEdit");
-        setChapters("0");
-        setPrayerH("0");
-        setPrayerM("0");
+        setChapters("");
+        setPrayerH("");
+        setPrayerM("");
       } else {
         setExisting(null);
         setMode("new");
@@ -113,9 +113,9 @@ export default function ReportePage() {
           localStorage.removeItem(lockKey(dateKey));
         } catch {}
         notifyLockChanged();
-        setChapters("0");
-        setPrayerH("0");
-        setPrayerM("0");
+        setChapters("");
+        setPrayerH("");
+        setPrayerM("");
       }
     })();
   }, [dateKey]);
@@ -266,6 +266,7 @@ export default function ReportePage() {
                       value={chapters}
                       inputMode="numeric"
                       onChange={(e) => setChapters(onlyDigits(e.target.value))}
+                      onFocus={(e) => e.currentTarget.select()}
                       placeholder="0"
                     />
                     <div className="text-xs text-white/45">Nota: la lectura se registra por cantidad de capítulos.</div>
@@ -286,6 +287,7 @@ export default function ReportePage() {
                         value={prayerH}
                         inputMode="numeric"
                         onChange={(e) => setPrayerH(onlyDigits(e.target.value))}
+                        onFocus={(e) => e.currentTarget.select()}
                         placeholder="0"
                       />
                     </div>
@@ -295,6 +297,7 @@ export default function ReportePage() {
                         value={prayerM}
                         inputMode="numeric"
                         onChange={(e) => setPrayerM(onlyDigits(e.target.value))}
+                        onFocus={(e) => e.currentTarget.select()}
                         placeholder="0"
                       />
                     </div>

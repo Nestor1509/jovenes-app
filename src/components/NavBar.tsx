@@ -96,15 +96,6 @@ export default function NavBar() {
     router.refresh();
   }
 
-  async function entrarConGoogle() {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin + "/auth/callback",
-      },
-    });
-  }
-
   const role = profile?.role;
 
   const userLine = useMemo(() => {
@@ -163,16 +154,6 @@ export default function NavBar() {
               </Link>
             );
           })}
-
-          {!loading && !session && (
-            <button
-              onClick={entrarConGoogle}
-              className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm border border-white/10 bg-white/5 hover:bg-white/10 transition"
-              title="Iniciar sesión con Google"
-            >
-              <span>Entrar</span>
-            </button>
-          )}
 
           {!!session && (
             <button

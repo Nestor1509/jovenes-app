@@ -52,8 +52,7 @@ export function Subtitle({ className, children, ...props }: React.HTMLAttributes
   );
 }
 
-// NOTE: Algunas páginas usan variant="secondary" (legacy). Lo mantenemos para evitar fallos de build.
-type BtnVariant = "primary" | "secondary" | "ghost" | "subtle";
+type BtnVariant = "primary" | "ghost" | "subtle";
 
 export function Button({
   className,
@@ -64,7 +63,6 @@ export function Button({
     "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60 focus-visible:ring-offset-0-semibold transition focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-60 disabled:cursor-not-allowed";
   const styles: Record<BtnVariant, string> = {
     primary: "btn-primary text-zinc-950",
-    secondary: "bg-white/10 text-white hover:bg-white/20 border border-white/10",
     ghost: "btn-ghost text-white",
     subtle: "rounded-xl px-4 py-2 text-sm font outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60 focus-visible:ring-offset-0-semibold bg-white/5 border border-white/10 hover:bg-white/10",
   };

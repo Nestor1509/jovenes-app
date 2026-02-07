@@ -188,6 +188,15 @@ export default function LiderPage() {
       20000
     );
 
+    if (wsRes.error || msRes.error) {
+      const err = (wsRes.error ?? msRes.error) as any;
+      setMsg(
+        `No se pudieron cargar estadísticas. ` +
+          (err?.message ? `Detalle: ${err.message}. ` : "") +
+          "Si acabas de cambiar el reporte a capítulos, asegúrate de ejecutar el SQL de vistas (supabase/sql/03_views_chapters.sql) en Supabase."
+      );
+    }
+
     setWeekStats((wsRes.data as WeekStats) ?? null);
     setMonthStats((msRes.data as MonthStats) ?? null);
   }
@@ -354,7 +363,7 @@ export default function LiderPage() {
               <div className="w-full sm:w-64">
                 <div className="text-xs text-white/60 mb-1">Ordenar por</div>
                 <Select value={topMode} onChange={(e) => setTopMode(e.target.value as any)}>
-                  <option value="bible">Capítulos (minutos)</option>
+                  <option value="bible">Capítulos</option>
                   <option value="prayer">Oración (minutos)</option>
                   <option value="reports">Reportes (cantidad)</option>
                 </Select>

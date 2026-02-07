@@ -1,49 +1,48 @@
 "use client";
 
-import dynamicImport from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
-import { cached } from "@/lib/cache";
-import { useMyProfile, Profile } from "@/lib/useMyProfile";
-import { Container, Card, Title, Subtitle, PageFade, Stat, Button, Input } from "@/components/ui";
+import { cached, invalidate } from "@/lib/cache";
+import { useMyProfile } from "@/lib/useMyProfile";
+import { Container, Card, Title, Subtitle, PageFade, Stat, Select, Button, Skeleton, EmptyState } from "@/components/ui";
 import LoadingCard from "@/components/LoadingCard";
-import { ArrowLeft, CalendarDays, RefreshCw, X } from "lucide-react";
-const TrendLine = dynamicImport(() => import("@/components/charts/TrendLine"), { ssr: false });
+import { Users, CalendarDays, BarChart3, Trophy, RefreshCw, FileDown } from "lucide-react";
+const TopYouthBars = dynamic(() => import("@/components/charts/TopYouthBars"), { ssr: false });
 
 
-type ReportRow = {
-  report_date: string;
-  bible_minutes: number;
-  prayer_minutes: number;
-  chapters_count?: number | null;
-  bible_chapters?: string | null;
-  prayer_topic?: string | null;
+type Group = { id: string; name: string };
+
+type WeekStats = {
+  group_id: string;
+  week_start: string;
+  active_youth: number;
+  total_bible_minutes: number;
+  total_prayer_minutes: number;
+  total_reports: number;
 };
 
-function isoToday() {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
+type MonthStats = {
+  group_id: string;
+  month_start: string;
+  active_youth: number;
+  total_bible_minutes: number;
+  total_prayer_minutes: number;
+  total_reports: number;
+};
 
-function startOfMonth(iso: string) {
-  return iso.slice(0, 7) + "-01";
-}
+type YouthTotals = {
+  user_id: string;
+  name: string;
+  group_id: string;
+  total_bible_minutes: number;
+  total_prayer_minutes: number;
+  total_reports: number;
+};
 
-function minusDays(iso: string, days: number) {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() - days);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function fmtMinutes(min: number) {
-  const t = Math.max(0, Math.floor(Number(min || 0)));
+function formatearMinutos(min: any) {
+  const t = Math.max(0, Math.floor(Number(min ?? 0)));
   const h = Math.floor(t / 60);
   const m = t % 60;
   if (h <= 0) return `${m} min`;
@@ -51,9 +50,16 @@ function fmtMinutes(min: number) {
   return `${h} h ${m} min`;
 }
 
-function weekKey(iso: string) {
-  // Semana por lunes
-  const d = new Date(iso + "T00:00:00");
+function hoyISO() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function inicioSemanaISO(dateISO: string) {
+  const d = new Date(dateISO + "T00:00:00");
   const day = d.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
@@ -63,135 +69,215 @@ function weekKey(iso: string) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-export default function LiderJovenDetallePage() {
-  const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const youthId = params?.id;
+function inicioMesISO(dateISO: string) {
+  return dateISO.slice(0, 7) + "-01";
+}
 
-  const { loading: authLoading, session, profile: me, error: authError } = useMyProfile();
+export default function LiderPage() {
+  const { loading: authLoading, session, profile, error: authError } = useMyProfile();
 
   const [loading, setLoading] = useState(true);
-  const [restricted, setRestricted] = useState(false);
   const [msg, setMsg] = useState("");
 
-  const [youth, setYouth] = useState<Profile | null>(null);
-  const [rows, setRows] = useState<ReportRow[]>([]);
-  const [selected, setSelected] = useState<ReportRow | null>(null);
+  const [group, setGroup] = useState<Group | null>(null);
 
-  const today = useMemo(() => isoToday(), []);
-  const [from, setFrom] = useState(minusDays(today, 30));
-  const [to, setTo] = useState(today);
+  const [availableWeeks, setAvailableWeeks] = useState<string[]>([]);
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
+  const [selectedWeek, setSelectedWeek] = useState<string>("");
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
 
-  async function load() {
-    setLoading(true);
+  const [weekStats, setWeekStats] = useState<WeekStats | null>(null);
+  const [monthStats, setMonthStats] = useState<MonthStats | null>(null);
+
+  const [youth, setYouth] = useState<YouthTotals[]>([]);
+  const [topMode, setTopMode] = useState<"bible" | "prayer" | "reports">("bible");
+
+  const today = useMemo(() => hoyISO(), []);
+  const defaultWeek = useMemo(() => inicioSemanaISO(today), [today]);
+  const defaultMonth = useMemo(() => inicioMesISO(today), [today]);
+
+  function rangeFromSelection() {
+    // Si hay week seleccionada, exportamos esa semana.
+    if (selectedWeek) {
+      const start = selectedWeek;
+      const d = new Date(start + "T00:00:00Z");
+      d.setUTCDate(d.getUTCDate() + 6);
+      const end = d.toISOString().slice(0, 10);
+      return { from: start, to: end };
+    }
+
+    // Si hay mes seleccionado, exportamos el mes.
+    if (selectedMonth) {
+      const start = `${selectedMonth}-01`;
+      const d = new Date(start + "T00:00:00Z");
+      // último día del mes: ir al 1 del siguiente mes -1
+      d.setUTCMonth(d.getUTCMonth() + 1);
+      d.setUTCDate(0);
+      const end = d.toISOString().slice(0, 10);
+      return { from: start, to: end };
+    }
+
+    return { from: defaultWeek, to: today };
+  }
+
+  async function exportar(tipo: "xlsx" | "pdf") {
+    try {
+      setMsg("");
+      const token = session?.access_token;
+      if (!token) throw new Error("Sesión inválida.");
+
+      const { from, to } = rangeFromSelection();
+      // Solo exportación Excel/CSV (PDF removido)
+      const endpoint = "/api/export/reports/xlsx";
+      const params = new URLSearchParams({ from, to });
+      const res = await fetch(`${endpoint}?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const blob = await res.blob();
+      if (!res.ok) {
+        const txt = await blob.text().catch(() => "");
+        throw new Error(txt || "No se pudo exportar.");
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `reportes-${from}-a-${to}.${tipo}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setMsg(String(e?.message || "No se pudo exportar."));
+    }
+  }
+
+  async function cargarBase() {
     setMsg("");
-    setRestricted(false);
+    setLoading(true);
 
     if (!session) {
       setLoading(false);
       return;
     }
+
     if (authError) {
       setMsg(authError);
       setLoading(false);
       return;
     }
-    if (!me || !["leader", "admin"].includes(me.role)) {
-      setRestricted(true);
-      setLoading(false);
-      return;
-    }
-    if (!youthId) {
-      setMsg("Falta el ID del joven.");
+
+    if (!profile || (profile.role !== "leader" && profile.role !== "admin")) {
+      setMsg("Esta página es solo para líderes.");
       setLoading(false);
       return;
     }
 
-    // 1) Perfil del joven
-    const pRes = await supabase.from("profiles").select("id,name,role,group_id").eq("id", youthId).maybeSingle();
-
-    if (pRes.error) {
-      // Si RLS bloquea, mostramos restringido
-      setRestricted(true);
+    if (!profile.group_id) {
+      setMsg("No tienes grupo asignado. Pide al administrador que te asigne uno.");
       setLoading(false);
       return;
     }
 
-    const p = pRes.data as Profile | null;
-    if (!p || p.role !== "youth") {
-      setMsg("Este usuario no es un joven.");
-      setLoading(false);
-      return;
+    const gRes = await cached(`leader:${session.user.id}:group:${profile.group_id}`, async () => supabase.from("groups").select("id,name").eq("id", profile.group_id).maybeSingle(), 60000);
+    if (gRes.error) setMsg("No se pudo cargar tu grupo.");
+    setGroup((gRes.data as Group) ?? null);
+
+    const [wListRes, mListRes, ytRes] = await cached(`leader:${session.user.id}:base:${profile.group_id}`, async () => Promise.all([
+      supabase
+        .from("leader_group_stats_week")
+        .select("week_start")
+        .eq("group_id", profile.group_id)
+        .order("week_start", { ascending: false })
+        .limit(24),
+      supabase
+        .from("leader_group_stats_month")
+        .select("month_start")
+        .eq("group_id", profile.group_id)
+        .order("month_start", { ascending: false })
+        .limit(12),
+      supabase.from("leader_youth_totals").select("*").eq("group_id", profile.group_id).order("name"),
+    ]), 20000);
+
+    const weeks = Array.from(new Set((wListRes.data ?? []).map((x: any) => x.week_start))).filter(Boolean);
+    const months = Array.from(new Set((mListRes.data ?? []).map((x: any) => x.month_start))).filter(Boolean);
+
+    setAvailableWeeks(weeks.length ? weeks : [defaultWeek]);
+    setAvailableMonths(months.length ? months : [defaultMonth]);
+
+    setSelectedWeek((prev) => prev || (weeks[0] ?? defaultWeek));
+    setSelectedMonth((prev) => prev || (months[0] ?? defaultMonth));
+
+    if (ytRes.error) {
+      setMsg("No se pudo cargar la lista de jóvenes.");
+      setYouth([]);
+    } else {
+      setYouth((ytRes.data ?? []) as YouthTotals[]);
     }
 
-    // Líder: solo su grupo. Admin: cualquier grupo.
-    if (me.role === "leader") {
-      if (!me.group_id || !p.group_id || me.group_id !== p.group_id) {
-        setRestricted(true);
-        setLoading(false);
-        return;
-      }
-    }
-
-    setYouth(p);
-
-    // 2) Reportes del rango
-    const rRes = await supabase
-      .from("reports")
-      .select("report_date,bible_minutes,prayer_minutes,chapters_count,bible_chapters,prayer_topic")
-      .eq("user_id", youthId)
-      .gte("report_date", from)
-      .lte("report_date", to)
-      .order("report_date", { ascending: true });
-
-    if (rRes.error) {
-      setRestricted(true);
-      setLoading(false);
-      return;
-    }
-
-    setRows((rRes.data ?? []) as any);
-    setSelected(null);
     setLoading(false);
+  }
+
+  async function cargarStatsPorSeleccion(groupId: string, weekStart: string, monthStart: string) {
+    if (!session) return;
+    const [wsRes, msRes] = await cached(
+      `leader:${session.user.id}:stats:${groupId}:${weekStart}:${monthStart}`,
+      async () =>
+        Promise.all([
+          supabase
+            .from("leader_group_stats_week")
+            .select("*")
+            .eq("group_id", groupId)
+            .eq("week_start", weekStart)
+            .maybeSingle(),
+          supabase
+            .from("leader_group_stats_month")
+            .select("*")
+            .eq("group_id", groupId)
+            .eq("month_start", monthStart)
+            .maybeSingle(),
+        ]),
+      20000
+    );
+
+    setWeekStats((wsRes.data as WeekStats) ?? null);
+    setMonthStats((msRes.data as MonthStats) ?? null);
   }
 
   useEffect(() => {
     if (authLoading) return;
-    load();
+    if (!session) return;
+    cargarBase();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, session?.user?.id, me?.role, me?.group_id, youthId]);
+  }, [authLoading, session?.user?.id, profile?.group_id, profile?.role, authError]);
 
   useEffect(() => {
-    if (!session || authLoading) return;
-    load();
+    if (!profile?.group_id) return;
+    if (!selectedWeek || !selectedMonth) return;
+    cargarStatsPorSeleccion(profile.group_id, selectedWeek, selectedMonth);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to]);
+  }, [profile?.group_id, selectedWeek, selectedMonth]);
 
-  const totals = useMemo(() => {
-    let b = 0, p = 0;
-    for (const r of rows) {
-      b += Number(r.bible_minutes ?? 0);
-      p += Number(r.prayer_minutes ?? 0);
-    }
-    return { bible: b, prayer: p, reports: rows.length };
-  }, [rows]);
+  const topData = useMemo(() => {
+    const sorted = [...youth].sort((a, b) => {
+      const av =
+        topMode === "bible" ? a.total_bible_minutes : topMode === "prayer" ? a.total_prayer_minutes : a.total_reports;
+      const bv =
+        topMode === "bible" ? b.total_bible_minutes : topMode === "prayer" ? b.total_prayer_minutes : b.total_reports;
+      return Number(bv ?? 0) - Number(av ?? 0);
+    });
 
-  const trend = useMemo(() => {
-    const map = new Map<string, { bible: number; prayer: number }>();
-    for (const r of rows) {
-      const k = weekKey(r.report_date);
-      const cur = map.get(k) ?? { bible: 0, prayer: 0 };
-      cur.bible += Number(r.bible_minutes ?? 0);
-      cur.prayer += Number(r.prayer_minutes ?? 0);
-      map.set(k, cur);
-    }
-    const labels = Array.from(map.keys()).sort();
-    return labels.map((k) => ({
-      label: k.slice(5), // MM-DD
-      bible: map.get(k)!.bible,
-      prayer: map.get(k)!.prayer,
+    return sorted.slice(0, 10).map((y) => ({
+      name: y.name.length > 12 ? y.name.slice(0, 12) + "…" : y.name,
+      fullName: y.name,
+      value:
+        topMode === "bible"
+          ? Number(y.total_bible_minutes ?? 0)
+          : topMode === "prayer"
+          ? Number(y.total_prayer_minutes ?? 0)
+          : Number(y.total_reports ?? 0),
     }));
-  }, [rows]);
+  }, [youth, topMode]);
 
   if (authLoading) return <LoadingCard text="Cargando sesión…" />;
 
@@ -200,180 +286,212 @@ export default function LiderJovenDetallePage() {
       <Container>
         <PageFade>
           <Card>
-            <Title>Detalle</Title>
-            <Subtitle>Inicia sesión para ver esta página.</Subtitle>
-            <div className="mt-4">
-              <Button onClick={() => (window.location.href = "/")}>Ir a inicio</Button>
-            </div>
+            <Title>Inicia sesión</Title>
+            <Subtitle>Necesitas iniciar sesión para usar esta página.</Subtitle>
           </Card>
         </PageFade>
       </Container>
     );
   }
 
+  if (loading)
+    return (
+      <Container>
+        <PageFade>
+          <div className="grid gap-6">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <Skeleton className="h-7 w-48" />
+                <Skeleton className="mt-2 h-4 w-72" />
+              </div>
+              <Skeleton className="h-10 w-44" />
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <Skeleton className="h-24" />
+              <Skeleton className="h-24" />
+              <Skeleton className="h-24" />
+              <Skeleton className="h-24" />
+            </div>
+            <Skeleton className="h-[360px]" />
+          </div>
+        </PageFade>
+      </Container>
+    );
+
   return (
     <Container>
       <PageFade>
         <div className="grid gap-6">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-end justify-between gap-3 flex-wrap">
             <div>
-              <Button className="mb-3 bg-white/10 text-white border border-white/10 hover:bg-white/15" onClick={() => router.back()}>
-                <ArrowLeft size={16} className="mr-2" />
-                Volver
-              </Button>
-              <Title>Detalle</Title>
-              <Subtitle>
-                Vista por persona · Rango: {from} → {to}
-              </Subtitle>
-              {restricted && <div className="text-red-300 text-sm mt-2">Acceso restringido.</div>}
-              {msg && <div className="text-red-300 text-sm mt-2">{msg}</div>}
-              {youth && !restricted && (
-                <div className="text-sm text-white/70 mt-1">
-                  {youth.name} · Joven
-                </div>
-              )}
+              <Title>Panel de líder</Title>
+              <Subtitle>{group ? `Grupo: ${group.name} (solo jóvenes)` : "Estadísticas del grupo"}</Subtitle>
             </div>
 
-            <Card className="p-4 min-w-[300px]">
-              <div className="flex items-center gap-2 mb-2">
-                <CalendarDays size={16} className="opacity-80" />
-                <div className="text-sm font-semibold">Rango</div>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <Button onClick={() => exportar("xlsx")} className="inline-flex items-center gap-2">
+                <FileDown size={16} /> Excel
+              </Button>
+              <Button onClick={cargarBase} variant="ghost" className="inline-flex items-center gap-2">
+                <RefreshCw size={16} /> Actualizar
+              </Button>
+            </div>
+          </div>
+
+          {msg && <div className="text-red-300 text-sm">{msg}</div>}
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <CalendarDays size={18} className="opacity-80" />
+                    <div className="text-sm font-semibold">Semana (jóvenes)</div>
+                  </div>
+                  <div className="text-xs text-white/60">Selecciona una semana</div>
+                </div>
+
+                <div className="w-full sm:w-56">
+                  <Select value={selectedWeek} onChange={(e) => setSelectedWeek(e.target.value)}>
+                    {availableWeeks.map((w) => (
+                      <option key={w} value={w}>
+                        {w}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="mt-4">
+                {weekStats ? (
+                  <div className="grid gap-2">
+                    <Stat label="Jóvenes activos" value={Number(weekStats.active_youth ?? 0)} />
+                    <Stat label="Lectura total" value={formatearMinutos(weekStats.total_bible_minutes)} />
+                    <Stat label="Oración total" value={formatearMinutos(weekStats.total_prayer_minutes)} />
+                    <Stat label="Reportes" value={Number(weekStats.total_reports ?? 0)} />
+                  </div>
+                ) : (
+                  <div className="text-sm text-white/70">No hay datos para esa semana.</div>
+                )}
+              </div>
+            </Card>
+
+            <Card>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
-                  <div className="text-xs text-white/60 mb-1">Desde</div>
-                  <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+                  <div className="flex items-center gap-2 mb-1">
+                    <BarChart3 size={18} className="opacity-80" />
+                    <div className="text-sm font-semibold">Mes (jóvenes)</div>
+                  </div>
+                  <div className="text-xs text-white/60">Selecciona un mes</div>
                 </div>
-                <div>
-                  <div className="text-xs text-white/60 mb-1">Hasta</div>
-                  <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+
+                <div className="w-full sm:w-56">
+                  <Select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                    {availableMonths.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </Select>
                 </div>
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button className="bg-white/10 text-white border border-white/10 hover:bg-white/15" onClick={() => { setFrom(minusDays(today, 7)); setTo(today); }}>
-                  7 días
-                </Button>
-                <Button className="bg-white/10 text-white border border-white/10 hover:bg-white/15" onClick={() => { setFrom(minusDays(today, 30)); setTo(today); }}>
-                  30 días
-                </Button>
-                <Button className="bg-white/10 text-white border border-white/10 hover:bg-white/15" onClick={() => { setFrom(startOfMonth(today)); setTo(today); }}>
-                  Mes
-                </Button>
-                <Button className="bg-white/10 text-white border border-white/10 hover:bg-white/15" onClick={load} disabled={loading}>
-                  <RefreshCw size={16} className={loading ? "animate-spin mr-2" : "mr-2"} />
-                  Actualizar
-                </Button>
+              <div className="mt-4">
+                {monthStats ? (
+                  <div className="grid gap-2">
+                    <Stat label="Jóvenes activos" value={Number(monthStats.active_youth ?? 0)} />
+                    <Stat label="Lectura total" value={formatearMinutos(monthStats.total_bible_minutes)} />
+                    <Stat label="Oración total" value={formatearMinutos(monthStats.total_prayer_minutes)} />
+                    <Stat label="Reportes" value={Number(monthStats.total_reports ?? 0)} />
+                  </div>
+                ) : (
+                  <div className="text-sm text-white/70">No hay datos para ese mes.</div>
+                )}
               </div>
             </Card>
           </div>
 
-          {!restricted && (
-            <>
-              <Card>
-                <div className="text-sm font-semibold mb-3">Resumen del rango</div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  <Stat label="Lectura" value={fmtMinutes(totals.bible)} />
-                  <Stat label="Oración" value={fmtMinutes(totals.prayer)} />
-                  <Stat label="Reportes" value={totals.reports} />
+          <Card>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Trophy size={18} className="opacity-80" />
+                  <div className="text-sm font-semibold">Top 10 del grupo (solo jóvenes)</div>
                 </div>
-              </Card>
+                <Subtitle>Visual (totales generales).</Subtitle>
+              </div>
 
-              <Card>
-                <div className="text-sm font-semibold mb-1">Tendencia semanal</div>
-                <Subtitle>Agrupado por semana (lunes).</Subtitle>
-                <div className="mt-4">
-                  {trend.length < 2 ? (
-                    <div className="text-sm text-white/70">No hay suficientes datos para mostrar la tendencia.</div>
-                  ) : (
-                    <TrendLine data={trend.map(t => ({
-                      label: t.label,
-                      lectura: t.bible,
-                      oracion: t.prayer,
-                    }))} />
+              <div className="w-full sm:w-64">
+                <div className="text-xs text-white/60 mb-1">Ordenar por</div>
+                <Select value={topMode} onChange={(e) => setTopMode(e.target.value as any)}>
+                  <option value="bible">Lectura (minutos)</option>
+                  <option value="prayer">Oración (minutos)</option>
+                  <option value="reports">Reportes (cantidad)</option>
+                </Select>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              {topData.length === 0 ? (
+                <EmptyState
+                  title="Aún no hay datos"
+                  description="Cuando los jóvenes envíen reportes, verás el Top 10 aquí."
+                  action={<Trophy className="h-5 w-5 text-amber-400" />}
+                />
+              ) : (
+                <TopYouthBars data={topData as any} />
+              )}
+            </div>
+          </Card>
+
+          <Card>
+            <div className="flex items-center gap-2 mb-2">
+              <Users size={18} className="opacity-80" />
+              <div className="text-sm font-semibold">Jóvenes del grupo (totales)</div>
+            </div>
+            <Subtitle>Sin incluir al líder ni al admin.</Subtitle>
+
+            <div className="mt-4 overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="text-white/70">
+                  <tr className="border-b border-white/10">
+                    <th className="text-left py-3 pr-3">Nombre</th>
+                    <th className="text-left py-3 pr-3">Lectura</th>
+                    <th className="text-left py-3 pr-3">Oración</th>
+                    <th className="text-left py-3 pr-3">Detalle</th>
+                    <th className="text-left py-3 pr-3">Reportes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {youth.map((y) => (
+                    <tr key={y.user_id} className="border-b border-white/5">
+                      <td className="py-3 pr-3 font-medium">{y.name}</td>
+                      <td className="py-3 pr-3">{formatearMinutos(y.total_bible_minutes)}</td>
+                      <td className="py-3 pr-3">{formatearMinutos(y.total_prayer_minutes)}</td>
+                      
+<td className="py-3 pr-3">
+  <Link href={`/lider/joven/${y.user_id}`} className="inline-flex">
+    <span className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15 transition">
+      Ver
+    </span>
+  </Link>
+</td>
+<td className="py-3 pr-3">{Number(y.total_reports ?? 0)}</td>
+                    </tr>
+                  ))}
+
+                  {youth.length === 0 && (
+                    <tr>
+                      <td className="py-4 text-white/70" colSpan={5}>
+                        No hay jóvenes en este grupo o aún no han registrado.
+                      </td>
+                    </tr>
                   )}
-                </div>
-              </Card>
-
-              <Card>
-                <div className="text-sm font-semibold mb-1">Historial</div>
-                <Subtitle>Reportes del rango seleccionado.</Subtitle>
-                <div className="mt-4 overflow-auto">
-                  <table className="w-full text-sm">
-                    <thead className="text-white/70">
-                      <tr className="border-b border-white/10">
-                        <th className="text-left py-2 pr-3">Fecha</th>
-                        <th className="text-left py-2 pr-3">Lectura</th>
-                        <th className="text-left py-2 pr-3">Oración</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((r) => (
-                        <tr
-                          key={r.report_date}
-                          onClick={() => setSelected(r)}
-                          className="border-b border-white/5 hover:bg-white/5 cursor-pointer"
-                        >
-                          <td className="py-2 pr-3">{r.report_date}</td>
-                          <td className="py-2 pr-3">{fmtMinutes(Number(r.bible_minutes ?? 0))}</td>
-                          <td className="py-2 pr-3">{fmtMinutes(Number(r.prayer_minutes ?? 0))}</td>
-                        </tr>
-                      ))}
-                      {rows.length === 0 && (
-                        <tr>
-                          <td className="py-3 text-white/70" colSpan={3}>No hay reportes en este rango.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {selected && (
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold">Reporte del {selected.report_date}</div>
-                        <div className="text-xs text-white/60 mt-1">Detalles del reporte (caps/temas si aplica).</div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        className="!px-2"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelected(null);
-                        }}
-                      >
-                        <X size={16} />
-                      </Button>
-                    </div>
-
-                    <div className="mt-3 grid gap-3 md:grid-cols-3">
-                      <Stat label="Lectura" value={fmtMinutes(Number(selected.bible_minutes ?? 0))} />
-                      <Stat label="Oración" value={fmtMinutes(Number(selected.prayer_minutes ?? 0))} />
-                      <Stat
-                        label="Caps"
-                        value={
-                          selected.chapters_count === null || selected.chapters_count === undefined
-                            ? "—"
-                            : String(selected.chapters_count)
-                        }
-                      />
-                    </div>
-
-                    <div className="mt-3 grid gap-2">
-                      <div className="text-xs text-white/60">Lectura (capítulos):</div>
-                      <div className="text-sm whitespace-pre-wrap">{selected.bible_chapters?.trim() ? selected.bible_chapters : "—"}</div>
-                      <div className="text-xs text-white/60 mt-2">Tema de oración:</div>
-                      <div className="text-sm whitespace-pre-wrap">{selected.prayer_topic?.trim() ? selected.prayer_topic : "—"}</div>
-                    </div>
-                  </div>
-                )}
-              </Card>
-            </>
-          )}
-
-          {loading && <div className="text-sm text-white/70">Cargando…</div>}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
       </PageFade>
     </Container>

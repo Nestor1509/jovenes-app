@@ -7,8 +7,7 @@ export type AuditAction =
   | "DELETE_USER"
   | "CREATE_GROUP"
   | "UPDATE_GROUP"
-  | "DELETE_GROUP"
-  | "DELETE_REPORT";
+  | "DELETE_GROUP";
 
 export async function logAuditEvent(params: {
   actor_id: string;

@@ -66,28 +66,15 @@ Si ves errores como **"infinite recursion detected in policy for relation \"prof
 
 En ambas puedes filtrar por rango y ver tendencia semanal + historial.
 
-### 4) Inicio de sesión (solo Google)
+### 4) Registro solo con Google
 
-La pantalla de inicio permite:
+La pantalla de inicio ahora permite:
 
 - **Entrar con Google** (OAuth)
 
-**Regla:** todo usuario nuevo que inicie sesión por primera vez (incluido Google) crea automáticamente su fila en `profiles` con `role = 'youth'`.
+**Regla:** todo usuario nuevo que inicie sesión por primera vez crea automáticamente su fila en `profiles` con `role = 'youth'`.
 
 Para habilitar Google en Supabase:
 
 1) En **Authentication → Providers → Google**, activa el proveedor y configura Client ID/Secret.
 2) Agrega el dominio a **Redirect URLs** (por ejemplo: `http://localhost:3000` y tu dominio de producción).
-
-### 5) Campos extra del reporte (capítulos y tema de oración)
-
-El formulario de **Reporte** ahora incluye campos opcionales:
-
-- **Capítulos leídos (cantidad)**
-- **Capítulos (detalle)**
-- **Tema de oración**
-
-Para que Supabase pueda guardarlos, ejecuta en el SQL Editor:
-
-- `supabase/sql/03_reports_extra_fields.sql`
-

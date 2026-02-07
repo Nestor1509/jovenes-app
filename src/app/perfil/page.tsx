@@ -25,16 +25,6 @@ export default function PerfilPage() {
   );
   const canSavePw = useMemo(() => pw1.length >= 6 && pw1 === pw2, [pw1, pw2]);
 
-  // If the user authenticated with Google (OAuth), there is no password to manage here.
-  const authProvider = useMemo(() => {
-    const p = (session as any)?.user?.app_metadata?.provider;
-    if (typeof p === "string") return p;
-    const providers = (session as any)?.user?.app_metadata?.providers;
-    if (Array.isArray(providers) && providers.length) return String(providers[0]);
-    return "";
-  }, [session]);
-  const canManagePassword = authProvider === "email";
-
   async function saveName() {
     if (!profile) return;
     setBusy(true);
@@ -74,7 +64,7 @@ export default function PerfilPage() {
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
             <Title>Perfil</Title>
-            <Subtitle>Actualiza tu nombre.</Subtitle>
+            <Subtitle>Actualiza tu nombre y tu contraseña.</Subtitle>
           </div>
           {profile && (
             <Badge>Rol: {profile.role === "admin" ? "Admin" : profile.role === "leader" ? "Líder" : "Joven"}</Badge>
@@ -112,28 +102,26 @@ export default function PerfilPage() {
               </div>
             </Card>
 
-            {canManagePassword && (
-              <Card>
-                <div className="flex items-center gap-2">
-                  <KeyRound className="h-4 w-4 opacity-80" />
-                  <div className="text-lg">
-                    <Title>Contraseña</Title>
-                  </div>
+            <Card>
+              <div className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4 opacity-80" />
+                <div className="text-lg">
+                  <Title>Contraseña</Title>
                 </div>
-                <div className="mt-1">
-                  <Subtitle>Recomendación: usa una contraseña fuerte.</Subtitle>
-                </div>
+              </div>
+              <div className="mt-1">
+                <Subtitle>Recomendación: usa una contraseña fuerte.</Subtitle>
+              </div>
 
-                <div className="mt-4 space-y-3">
-                  <Input type="password" value={pw1} onChange={(e) => setPw1(e.target.value)} placeholder="Nueva contraseña" />
-                  <Input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="Repite la nueva contraseña" />
-                  <Button disabled={!canSavePw || busy} onClick={savePassword}>
-                    Cambiar contraseña
-                  </Button>
-                  <p className="text-xs opacity-70">Mínimo 6 caracteres.</p>
-                </div>
-              </Card>
-            )}
+              <div className="mt-4 space-y-3">
+                <Input type="password" value={pw1} onChange={(e) => setPw1(e.target.value)} placeholder="Nueva contraseña" />
+                <Input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="Repite la nueva contraseña" />
+                <Button disabled={!canSavePw || busy} onClick={savePassword}>
+                  Cambiar contraseña
+                </Button>
+                <p className="text-xs opacity-70">Mínimo 6 caracteres.</p>
+              </div>
+            </Card>
           </div>
         )}
 

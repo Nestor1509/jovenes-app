@@ -44,6 +44,9 @@ function traducirError(msg: string) {
 type ExistingReport = {
   bible_minutes: number;
   prayer_minutes: number;
+  chapters_count?: number | null;
+  bible_chapters?: string | null;
+  prayer_topic?: string | null;
 };
 
 type Mode = "loading" | "new" | "askEdit" | "editing" | "done" | "doneLocked";
@@ -71,6 +74,11 @@ export default function ReportePage() {
   const [prayerH, setPrayerH] = useState<string>("");
   const [prayerM, setPrayerM] = useState<string>("");
 
+  // Campos extra (opcionales)
+  const [chaptersCount, setChaptersCount] = useState<string>("");
+  const [bibleChapters, setBibleChapters] = useState<string>("");
+  const [prayerTopic, setPrayerTopic] = useState<string>("");
+
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
@@ -86,7 +94,7 @@ export default function ReportePage() {
 
       const { data, error } = await supabase
         .from("reports")
-        .select("bible_minutes, prayer_minutes")
+        .select("bible_minutes, prayer_minutes, chapters_count, bible_chapters, prayer_topic")
         .eq("user_id", sess.session.user.id)
         .eq("report_date", dateKey)
         .maybeSingle();
@@ -95,6 +103,9 @@ export default function ReportePage() {
         setExisting({
           bible_minutes: data.bible_minutes ?? 0,
           prayer_minutes: data.prayer_minutes ?? 0,
+          chapters_count: (data as any).chapters_count ?? null,
+          bible_chapters: (data as any).bible_chapters ?? null,
+          prayer_topic: (data as any).prayer_topic ?? null,
         });
         // Si el usuario ya dijo que NO quiere editar hoy, no volvemos a preguntar
         // y tampoco mostramos la opción de editar.
@@ -113,6 +124,9 @@ export default function ReportePage() {
         setBibleM("");
         setPrayerH("");
         setPrayerM("");
+        setChaptersCount("");
+        setBibleChapters("");
+        setPrayerTopic("");
       } else {
         // No hay reporte hoy: formulario limpio (0)
         setExisting(null);
@@ -126,6 +140,9 @@ export default function ReportePage() {
         setBibleM("");
         setPrayerH("");
         setPrayerM("");
+        setChaptersCount("");
+        setBibleChapters("");
+        setPrayerTopic("");
       }
     })();
   }, [dateKey]);
@@ -141,6 +158,12 @@ export default function ReportePage() {
     setBibleM(b.m === 0 ? "" : String(b.m));
     setPrayerH(p.h === 0 ? "" : String(p.h));
     setPrayerM(p.m === 0 ? "" : String(p.m));
+
+    // Extra
+    const cc = existing?.chapters_count;
+    setChaptersCount(cc === null || cc === undefined || !Number.isFinite(Number(cc)) ? "" : String(cc));
+    setBibleChapters((existing?.bible_chapters ?? "").toString());
+    setPrayerTopic((existing?.prayer_topic ?? "").toString());
   }
 
   async function save() {
@@ -153,12 +176,19 @@ export default function ReportePage() {
     const bible_minutes = toMinutes(bibleH, bibleM);
     const prayer_minutes = toMinutes(prayerH, prayerM);
 
+    const chapters_count = chaptersCount.trim() === "" ? null : clampInt(Number(chaptersCount), 0, 500);
+    const bible_chapters = bibleChapters.trim() === "" ? null : bibleChapters.trim();
+    const prayer_topic = prayerTopic.trim() === "" ? null : prayerTopic.trim();
+
     const { error } = await supabase.from("reports").upsert(
       {
         user_id: user.id,
         report_date: today,
         bible_minutes,
         prayer_minutes,
+        chapters_count,
+        bible_chapters,
+        prayer_topic,
       },
       { onConflict: "user_id,report_date" }
     );
@@ -168,7 +198,7 @@ export default function ReportePage() {
       return;
     }
 
-    setExisting({ bible_minutes, prayer_minutes });
+    setExisting({ bible_minutes, prayer_minutes, chapters_count, bible_chapters, prayer_topic });
     try {
       localStorage.removeItem(lockKey(dateKey));
     } catch {}
@@ -206,6 +236,31 @@ export default function ReportePage() {
               {p.h}h {p.m}m
             </span>
           </div>
+
+          {(existing?.chapters_count || existing?.bible_chapters || existing?.prayer_topic) ? (
+            <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+              <div className="grid gap-2">
+                {existing?.chapters_count ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-white/70">Capítulos leídos</span>
+                    <span className="font-semibold text-white">{existing.chapters_count}</span>
+                  </div>
+                ) : null}
+                {existing?.bible_chapters ? (
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-white/70">Capítulos (detalle)</span>
+                    <span className="font-semibold text-white text-right break-words max-w-[60%]">{existing.bible_chapters}</span>
+                  </div>
+                ) : null}
+                {existing?.prayer_topic ? (
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-white/70">Tema de oración</span>
+                    <span className="font-semibold text-white text-right break-words max-w-[60%]">{existing.prayer_topic}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {allowEdit ? (
@@ -403,6 +458,47 @@ export default function ReportePage() {
                           }}
                         />
                       </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="text-sm font-medium">Detalles opcionales</div>
+                  <div className="mt-1 text-xs text-white/60">(No cambia nada de lo existente: solo agrega información extra.)</div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <div>
+                      <div className="text-xs text-white/60 mb-1">Capítulos leídos (cantidad)</div>
+                      <Input
+                        inputMode="numeric"
+                        placeholder="Opcional"
+                        value={chaptersCount}
+                        onChange={(e) => setChaptersCount(onlyDigits(e.target.value))}
+                        onBlur={() => {
+                          if (chaptersCount.trim() === "") return;
+                          const n = clampInt(Number(chaptersCount), 0, 500);
+                          setChaptersCount(String(n));
+                        }}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <div className="text-xs text-white/60 mb-1">Capítulos (detalle)</div>
+                      <Input
+                        placeholder="Opcional (ej: Juan 3-4, Salmo 23)"
+                        value={bibleChapters}
+                        onChange={(e) => setBibleChapters(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="md:col-span-3">
+                      <div className="text-xs text-white/60 mb-1">Tema de oración</div>
+                      <Input
+                        placeholder="Opcional (ej: familia, salud, trabajo, dirección)"
+                        value={prayerTopic}
+                        onChange={(e) => setPrayerTopic(e.target.value)}
+                      />
                     </div>
                   </div>
                 </div>

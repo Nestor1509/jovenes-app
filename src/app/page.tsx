@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Container, Card, Title, Subtitle, Button, PageFade } from "@/components/ui";
-import { Sparkles } from "lucide-react";
+import { Sparkles, ShieldCheck, ArrowRight } from "lucide-react";
 
 function traducirError(msg: string) {
   const m = (msg ?? "").toLowerCase();
@@ -39,7 +39,7 @@ export default function Home() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: window.location.origin,
         },
       });
       if (error) setMsg(traducirError(error.message));
@@ -94,13 +94,26 @@ export default function Home() {
           <Card>
             <Title>{sessionEmail ? "Listo para continuar" : "Iniciar sesión"}</Title>
             <Subtitle>
-              {sessionEmail ? "Usa el menú superior." : "Ingresa con tu cuenta de Google."}
+              {sessionEmail
+                ? "Usa el menú superior para Reporte, Mis estadísticas, Público, etc."
+                : "Solo se permite iniciar sesión con Google."}
             </Subtitle>
 
             {!sessionEmail ? (
-              <div className="mt-5 grid gap-3">
-                <Button type="button" onClick={signInGoogle} disabled={busy} className="inline-flex gap-2">
-                  Entrar con Google
+              <div className="mt-5 grid gap-4">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/75">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={16} className="opacity-80" />
+                    <span className="font-medium text-white">Acceso seguro</span>
+                  </div>
+                  <div className="mt-1 text-xs text-white/60">
+                    Tu cuenta queda registrada automáticamente como <b>Joven</b>.
+                  </div>
+                </div>
+
+                <Button type="button" onClick={signInGoogle} disabled={busy} className="w-full justify-center py-3 text-base">
+                  {busy ? "Conectando…" : "Entrar con Google"}
+                  <ArrowRight size={18} />
                 </Button>
 
                 {msg && (
@@ -111,7 +124,7 @@ export default function Home() {
               </div>
             ) : (
               <div className="mt-5 text-sm text-white/70">
-                Navega con el menú superior (Reporte, Mis estadísticas, Público, etc.).
+                Navega con el menú superior.
               </div>
             )}
           </Card>

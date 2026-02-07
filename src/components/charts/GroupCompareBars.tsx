@@ -4,16 +4,12 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } fro
 
 type Item = {
   group: string;
-  lectura: number; // minutos
+  lectura: number; // capítulos
   oracion: number; // minutos
 };
 
-function fmtDurationTick(v: number) {
-  const n = Math.max(0, Number(v || 0));
-  if (n < 60) return `${Math.round(n)}m`;
-  const h = n / 60;
-  if (Math.abs(h - Math.round(h)) < 1e-6) return `${Math.round(h)}h`;
-  return `${h.toFixed(1)}h`;
+function fmtTick(v: number) {
+  return `${Math.round(Math.max(0, Number(v || 0)))}`;
 }
 
 function niceMax(dataMax: number) {
@@ -60,7 +56,7 @@ export default function GroupCompareBars({ data }: { data: Item[] }) {
           />
           <YAxis
             domain={[0, max || 0]}
-            tickFormatter={fmtDurationTick}
+            tickFormatter={fmtTick}
             tick={{ fontSize: 12, fill: "rgba(255,255,255,0.65)" }}
             tickLine={false}
             axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
@@ -76,15 +72,18 @@ export default function GroupCompareBars({ data }: { data: Item[] }) {
               color: "white",
             }}
             labelStyle={{ color: "rgba(255,255,255,0.85)" }}
-            formatter={(value: any, name) => [fmt(Number(value)), name === "lectura" ? "Lectura" : "Oración"]}
+            formatter={(value: any, name) => {
+              if (name === "lectura") return [`${Math.max(0, Math.floor(Number(value || 0)))} capítulos`, "Capítulos"];
+              return [fmt(Number(value)), "Oración"];
+            }}
           />
           <Legend
             verticalAlign="top"
             height={28}
             formatter={(value) => <span style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>{value}</span>}
           />
-          <Bar dataKey="lectura" name="Lectura" fill="url(#gcb_read)" radius={[12, 12, 6, 6]} maxBarSize={46}  isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
-          <Bar dataKey="oracion" name="Oración" fill="url(#gcb_pray)" radius={[12, 12, 6, 6]} maxBarSize={46}  isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
+          <Bar dataKey="lectura" name="Capítulos" fill="url(#gcb_read)" radius={[12, 12, 6, 6]} maxBarSize={46} />
+          <Bar dataKey="oracion" name="Oración" fill="url(#gcb_pray)" radius={[12, 12, 6, 6]} maxBarSize={46} />
         </BarChart>
       </ResponsiveContainer>
     </div>

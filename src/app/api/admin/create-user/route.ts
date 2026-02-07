@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { logAuditEvent } from "@/lib/audit";
 
 type Body = {
   email: string;
@@ -27,7 +26,7 @@ export async function POST(req: Request) {
 
     const { data: callerProfile, error: profErr } = await supabaseAdmin
       .from("profiles")
-      .select("role,name")
+      .select("role")
       .eq("id", callerId)
       .single();
 
@@ -64,16 +63,6 @@ export async function POST(req: Request) {
       await supabaseAdmin.auth.admin.deleteUser(newUserId);
       return NextResponse.json({ error: "No se pudo crear el perfil del usuario." }, { status: 400 });
     }
-
-    await logAuditEvent({
-      actor_id: callerId,
-      actor_name: (callerProfile as any)?.name ?? null,
-      action: "CREATE_USER",
-      target_type: "user",
-      target_id: newUserId,
-      target_name: body.name,
-      details: { role: body.role, group_id: body.group_id },
-    });
 
     return NextResponse.json({
       ok: true,

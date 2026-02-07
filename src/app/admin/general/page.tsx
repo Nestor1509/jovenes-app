@@ -7,7 +7,7 @@ import { cached, invalidate } from "@/lib/cache";
 import { useMyProfile } from "@/lib/useMyProfile";
 import { Container, Card, Title, Subtitle, PageFade, Stat, Button, Select, Input } from "@/components/ui";
 import LoadingCard from "@/components/LoadingCard";
-import { Users, ArrowLeft, CalendarDays, Trophy, FileDown } from "lucide-react";
+import { Users, ArrowLeft, CalendarDays, Trophy } from "lucide-react";
 
 type Perfil = {
   id: string;
@@ -20,7 +20,7 @@ type Perfil = {
 type ReportRow = {
   user_id: string;
   report_date: string;
-  bible_minutes: number;
+  chapters_count: number;
   prayer_minutes: number;
 };
 
@@ -59,37 +59,6 @@ export default function AdminGeneralPage() {
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
 
-  async function descargar(tipo: "xlsx" | "pdf") {
-    try {
-      if (!me) return;
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      if (!token) throw new Error("Sesión inválida.");
-
-      // Solo exportación Excel/CSV (PDF removido)
-      const endpoint = "/api/export/reports/xlsx";
-      const params = new URLSearchParams({ from: fromDate, to: toDate });
-      const res = await fetch(`${endpoint}?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const blob = await res.blob();
-      if (!res.ok) {
-        const txt = await blob.text().catch(() => "");
-        throw new Error(txt || "No se pudo exportar.");
-      }
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `reportes-${fromDate}-a-${toDate}.${tipo}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e: any) {
-      setError(String(e?.message || "No se pudo exportar."));
-    }
-  }
-
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -119,7 +88,7 @@ export default function AdminGeneralPage() {
 
       const rRes = await supabase
         .from("reports")
-        .select("user_id,report_date,bible_minutes,prayer_minutes")
+        .select("user_id,report_date,chapters_count,prayer_minutes")
         .gte("report_date", fromDate)
         .lte("report_date", toDate);
 
@@ -138,10 +107,10 @@ export default function AdminGeneralPage() {
   }, [me, fromDate, toDate]);
 
   const byUser = useMemo(() => {
-    const map = new Map<string, { bible: number; prayer: number; reports: number; last?: string }>();
+    const map = new Map<string, { chapters: number; prayer: number; reports: number; last?: string }>();
     for (const r of reports) {
-      const prev = map.get(r.user_id) ?? { bible: 0, prayer: 0, reports: 0 };
-      prev.bible += Number(r.bible_minutes ?? 0);
+      const prev = map.get(r.user_id) ?? { chapters: 0, prayer: 0, reports: 0 };
+      prev.chapters += Number(r.chapters_count ?? 0);
       prev.prayer += Number(r.prayer_minutes ?? 0);
       prev.reports += 1;
       if (!prev.last || r.report_date > prev.last) prev.last = r.report_date;
@@ -153,13 +122,13 @@ export default function AdminGeneralPage() {
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     const base = perfiles.map((p) => {
-      const s = byUser.get(p.id) ?? { bible: 0, prayer: 0, reports: 0, last: undefined };
+      const s = byUser.get(p.id) ?? { chapters: 0, prayer: 0, reports: 0, last: undefined };
       return {
         ...p,
-        bible_minutes: s.bible,
+        chapters_count: s.chapters,
         prayer_minutes: s.prayer,
         reports: s.reports,
-        total_minutes: s.bible + s.prayer,
+        total_minutes: s.chapters + s.prayer,
         last_report: s.last ?? null,
         group_name: p.groups?.name ?? "Sin grupo",
       };
@@ -174,20 +143,20 @@ export default function AdminGeneralPage() {
   }, [perfiles, byUser, query]);
 
   const totals = useMemo(() => {
-    const t = { users: perfiles.length, reports: 0, bible: 0, prayer: 0 };
+    const t = { users: perfiles.length, reports: 0, chapters: 0, prayer: 0 };
     for (const r of reports) {
       t.reports += 1;
-      t.bible += Number(r.bible_minutes ?? 0);
+      t.chapters += Number(r.chapters_count ?? 0);
       t.prayer += Number(r.prayer_minutes ?? 0);
     }
     return t;
   }, [perfiles, reports]);
 
   const roleTotals = useMemo(() => {
-    const acc: Record<string, { users: number; reports: number; bible: number; prayer: number }> = {
-      youth: { users: 0, reports: 0, bible: 0, prayer: 0 },
-      leader: { users: 0, reports: 0, bible: 0, prayer: 0 },
-      admin: { users: 0, reports: 0, bible: 0, prayer: 0 },
+    const acc: Record<string, { users: number; reports: number; chapters: number; prayer: number }> = {
+      youth: { users: 0, reports: 0, chapters: 0, prayer: 0 },
+      leader: { users: 0, reports: 0, chapters: 0, prayer: 0 },
+      admin: { users: 0, reports: 0, chapters: 0, prayer: 0 },
     };
     const roleById = new Map(perfiles.map((p) => [p.id, p.role]));
     for (const p of perfiles) acc[p.role].users += 1;
@@ -195,7 +164,7 @@ export default function AdminGeneralPage() {
       const role = roleById.get(r.user_id);
       if (!role) continue;
       acc[role].reports += 1;
-      acc[role].bible += Number(r.bible_minutes ?? 0);
+      acc[role].chapters += Number(r.chapters_count ?? 0);
       acc[role].prayer += Number(r.prayer_minutes ?? 0);
     }
     return acc;
@@ -215,12 +184,7 @@ export default function AdminGeneralPage() {
             <Subtitle>Incluye jóvenes, líderes y admins. Rango editable y ranking total.</Subtitle>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap justify-end">
-            <div className="flex items-center gap-2">
-              <Button onClick={() => descargar("xlsx")} className="inline-flex items-center gap-2">
-                <FileDown size={16} /> Excel
-              </Button>
-            </div>
+          <div className="flex items-center gap-2">
             <div className="grid gap-1">
               <div className="text-xs text-white/60">Desde</div>
               <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
@@ -245,7 +209,7 @@ export default function AdminGeneralPage() {
             <div className="grid gap-3 md:grid-cols-4 mb-6">
               <Stat label="Personas (total)" value={totals.users} />
               <Stat label="Reportes" value={totals.reports} />
-              <Stat label="Lectura total" value={formatearMinutos(totals.bible)} />
+              <Stat label="Capítulos (total)" value={totals.chapters} />
               <Stat label="Oración total" value={formatearMinutos(totals.prayer)} />
             </div>
 
@@ -269,7 +233,7 @@ export default function AdminGeneralPage() {
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <Stat label="Personas" value={roleTotals[r].users} />
                       <Stat label="Reportes" value={roleTotals[r].reports} />
-                      <Stat label="Lectura" value={formatearMinutos(roleTotals[r].bible)} />
+                      <Stat label="Capítulos" value={roleTotals[r].chapters} />
                       <Stat label="Oración" value={formatearMinutos(roleTotals[r].prayer)} />
                     </div>
                   </div>
@@ -298,7 +262,7 @@ export default function AdminGeneralPage() {
                       <th className="text-left py-2 pr-3">Nombre</th>
                       <th className="text-left py-2 pr-3">Rol</th>
                       <th className="text-left py-2 pr-3">Grupo</th>
-                      <th className="text-right py-2 pr-3">Lectura</th>
+                      <th className="text-right py-2 pr-3">Capítulos</th>
                       <th className="text-right py-2 pr-3">Oración</th>
                       <th className="text-right py-2 pr-3">Reportes</th>
                       <th className="text-right py-2 pr-3">Total</th>
@@ -312,7 +276,7 @@ export default function AdminGeneralPage() {
                         <td className="py-2 pr-3 font-medium">{r.name}</td>
                         <td className="py-2 pr-3 text-white/80">{roleLabel(r.role)}</td>
                         <td className="py-2 pr-3 text-white/80">{r.group_name}</td>
-                        <td className="py-2 pr-3 text-right">{formatearMinutos(r.bible_minutes)}</td>
+                        <td className="py-2 pr-3 text-right">{r.chapters_count}</td>
                         <td className="py-2 pr-3 text-right">{formatearMinutos(r.prayer_minutes)}</td>
                         <td className="py-2 pr-3 text-right">{r.reports}</td>
                         <td className="py-2 pr-3 text-right font-semibold">{formatearMinutos(r.total_minutes)}</td>

@@ -1,133 +1,295 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Container, Card, Title, Subtitle, Button, PageFade } from "@/components/ui";
-import { Sparkles, ShieldCheck, ArrowRight } from "lucide-react";
+import { Container, Card, Title, Subtitle, Button, Input, PageFade } from "@/components/ui";
+import { BookOpen, CheckCircle2, Clock3, PencilLine } from "lucide-react";
+
+function todayISO() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function clampInt(n: number, min: number, max: number) {
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
+function toMinutes(hStr: string, mStr: string) {
+  const h = hStr.trim() === "" ? 0 : clampInt(Number(hStr), 0, 24);
+  const m = mStr.trim() === "" ? 0 : clampInt(Number(mStr), 0, 59);
+  return h * 60 + m;
+}
+
+function fromMinutes(total: number) {
+  const t = Number.isFinite(total) ? Math.max(0, Math.floor(total)) : 0;
+  return { h: Math.floor(t / 60), m: t % 60 };
+}
 
 function traducirError(msg: string) {
   const m = (msg ?? "").toLowerCase();
-  if (m.includes("invalid login")) return "Correo o contraseña incorrectos.";
-  if (m.includes("email not confirmed")) return "Tu correo no está confirmado (revisa tu email).";
-  if (m.includes("jwt")) return "Tu sesión expiró. Inicia sesión de nuevo.";
-  if (m.includes("rate limit")) return "Demasiados intentos. Espera un momento y vuelve a intentar.";
+  if (m.includes("jwt")) return "Tu sesión expiró. Vuelve a iniciar sesión.";
+  if (m.includes("permission denied") || m.includes("not allowed"))
+    return "No tienes permisos para realizar esta acción.";
+  if (m.includes("duplicate key") || m.includes("unique")) return "Ya existe un reporte para esa fecha.";
+  if (m.includes("stack depth"))
+    return "Error de seguridad/roles. Recarga la página (si continúa, avísame).";
   return "Ocurrió un error. Intenta de nuevo.";
 }
 
-export default function Home() {
-  const [busy, setBusy] = useState(false);
+type ExistingReport = {
+  chapters_count: number;
+  prayer_minutes: number;
+};
 
-  const [sessionEmail, setSessionEmail] = useState<string | null>(null);
+type Mode = "loading" | "new" | "askEdit" | "editing" | "done" | "doneLocked";
+
+function lockKey(dateISO: string) {
+  return `report_lock_${dateISO}`;
+}
+
+function notifyLockChanged() {
+  try {
+    window.dispatchEvent(new Event("report_lock_changed"));
+  } catch {}
+}
+
+export default function ReportePage() {
+  const today = useMemo(() => todayISO(), []);
+  const dateKey = today;
+
+  const [mode, setMode] = useState<Mode>("loading");
+  const [existing, setExisting] = useState<ExistingReport | null>(null);
+
+  const [chapters, setChapters] = useState<string>("0");
+  const [prayerH, setPrayerH] = useState<string>("0");
+  const [prayerM, setPrayerM] = useState<string>("0");
+
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSessionEmail(data.session?.user.email ?? null);
-    });
+    (async () => {
+      setMode("loading");
+      setMsg("");
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSessionEmail(session?.user.email ?? null);
-    });
+      const { data: sess } = await supabase.auth.getSession();
+      if (!sess.session) {
+        window.location.href = "/";
+        return;
+      }
 
-    return () => sub.subscription.unsubscribe();
-  }, []);
+      const { data, error } = await supabase
+        .from("reports")
+        .select("chapters_count, prayer_minutes")
+        .eq("user_id", sess.session.user.id)
+        .eq("report_date", dateKey)
+        .maybeSingle();
 
-  async function signInGoogle() {
+      if (!error && data) {
+        setExisting({
+          chapters_count: data.chapters_count ?? 0,
+          prayer_minutes: data.prayer_minutes ?? 0,
+        });
+
+        const locked = (() => {
+          try {
+            return localStorage.getItem(lockKey(dateKey)) === "1";
+          } catch {
+            return false;
+          }
+        })();
+
+        setMode(locked ? "doneLocked" : "askEdit");
+
+        setChapters("0");
+        setPrayerH("0");
+        setPrayerM("0");
+      } else {
+        setExisting(null);
+        setMode("new");
+        try {
+          localStorage.removeItem(lockKey(dateKey));
+        } catch {}
+        notifyLockChanged();
+
+        setChapters("0");
+        setPrayerH("0");
+        setPrayerM("0");
+      }
+    })();
+  }, [dateKey]);
+
+  const onlyDigits = (v: string) => v.replace(/[^\d]/g, "");
+
+  function loadExistingIntoForm() {
+    setChapters(String(existing?.chapters_count ?? 0));
+    const p = fromMinutes(existing?.prayer_minutes ?? 0);
+    setPrayerH(String(p.h));
+    setPrayerM(String(p.m));
+  }
+
+  async function save() {
     setMsg("");
-    try {
-      setBusy(true);
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: window.location.origin + "/auth/callback",
-        },
-      });
-      if (error) setMsg(traducirError(error.message));
-    } finally {
-      setBusy(false);
+
+    const { data: sess } = await supabase.auth.getSession();
+    const user = sess.session?.user;
+    if (!user) return;
+
+    const chapters_count = clampInt(Number(onlyDigits(chapters || "0")), 0, 500);
+    const prayer_minutes = toMinutes(prayerH, prayerM);
+
+    const { error } = await supabase.from("reports").upsert(
+      {
+        user_id: user.id,
+        report_date: today,
+        chapters_count,
+        prayer_minutes,
+      },
+      { onConflict: "user_id,report_date" }
+    );
+
+    if (error) {
+      setMsg(traducirError(error.message));
+      return;
     }
+
+    setExisting({ chapters_count, prayer_minutes });
+    try {
+      localStorage.removeItem(lockKey(dateKey));
+    } catch {}
+    notifyLockChanged();
+    setMode("done");
+    setMsg("✅ Guardado correctamente");
+  }
+
+  const Summary = ({ allowEdit }: { allowEdit: boolean }) => {
+    const p = fromMinutes(existing?.prayer_minutes ?? 0);
+    const caps = Math.max(0, Math.floor(Number(existing?.chapters_count ?? 0)));
+
+    return (
+      <div className="grid gap-3">
+        <div className="flex items-center gap-2 text-emerald-200/90">
+          <CheckCircle2 size={18} />
+          <div className="font-semibold">Ya reportaste hoy</div>
+        </div>
+
+        <div className="grid gap-2 text-sm text-white/70">
+          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+            <span className="flex items-center gap-2">
+              <BookOpen size={16} className="opacity-80" /> Capítulos leídos
+            </span>
+            <span className="font-semibold text-white">{caps}</span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+            <span className="flex items-center gap-2">
+              <Clock3 size={16} className="opacity-80" /> Oración
+            </span>
+            <span className="font-semibold text-white">
+              {p.h}h {p.m}m
+            </span>
+          </div>
+        </div>
+
+        {allowEdit && (
+          <Button
+            variant="subtle"
+            onClick={() => {
+              loadExistingIntoForm();
+              setMode("editing");
+            }}
+            className="mt-1"
+          >
+            <PencilLine size={16} /> Editar reporte
+          </Button>
+        )}
+      </div>
+    );
+  };
+
+  function lockNoEdit() {
+    try {
+      localStorage.setItem(lockKey(dateKey), "1");
+    } catch {}
+    notifyLockChanged();
+    setMode("doneLocked");
   }
 
   return (
     <Container>
-      <div className="mb-6 flex items-center gap-4">
-        <div className="h-14 w-14 rounded-3xl bg-white/5 border border-white/10 grid place-items-center text-lg font-semibold">MA</div>
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Ministerio Águilas</h1>
-          <p className="text-sm text-white/70">Casa de Dios Cruzada Cristiana</p>
-        </div>
-      </div>
-
       <PageFade>
-        <div className="grid gap-6 md:grid-cols-2 items-start">
-          <Card className="relative overflow-hidden">
-            <div className="absolute -top-24 -right-24 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-            <div className="absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
+        <div className="grid gap-6">
+          <div>
+            <Title>Reporte diario</Title>
+            <Subtitle>Reporta hoy tus capítulos leídos y tu tiempo de oración.</Subtitle>
+          </div>
 
-            <div className="flex items-center gap-2">
-              <Sparkles size={18} className="opacity-80" />
-              <Title>Bienvenido</Title>
-            </div>
-            <Subtitle>
-              Lleva un registro sencillo de tu lectura bíblica y tu tiempo de oración.
-            </Subtitle>
+          {msg && <div className={msg.startsWith("✅") ? "text-emerald-200 text-sm" : "text-red-300 text-sm"}>{msg}</div>}
 
-            <div className="mt-5 grid gap-3 text-sm text-white/80">
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                ✅ Reporte diario en horas y minutos
+          {mode === "loading" ? (
+            <Card>
+              <div className="text-sm text-white/70">Cargando…</div>
+            </Card>
+          ) : mode === "askEdit" ? (
+            <Card>
+              <Summary allowEdit={false} />
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    loadExistingIntoForm();
+                    setMode("editing");
+                  }}
+                >
+                  Sí, editar
+                </Button>
+                <Button variant="ghost" onClick={lockNoEdit}>
+                  No, dejar así
+                </Button>
               </div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                📊 Estadísticas personales, por grupo y públicas
-              </div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                🔒 Acceso por roles: joven, líder y admin
-              </div>
-            </div>
-
-            {sessionEmail && (
-              <div className="mt-5 text-sm text-white/70">
-                Sesión iniciada: <strong className="text-white">{sessionEmail}</strong>
-              </div>
-            )}
-          </Card>
-
-          <Card>
-            <Title>{sessionEmail ? "Listo para continuar" : "Iniciar sesión"}</Title>
-            <Subtitle>
-              {sessionEmail
-                ? "Usa el menú superior para Reporte, Mis estadísticas, Público, etc."
-                : "Solo se permite iniciar sesión con Google."}
-            </Subtitle>
-
-            {!sessionEmail ? (
-              <div className="mt-5 grid gap-4">
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/75">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck size={16} className="opacity-80" />
-                    <span className="font-medium text-white">Acceso seguro</span>
+            </Card>
+          ) : mode === "doneLocked" ? (
+            <Card>
+              <Summary allowEdit={false} />
+              <div className="mt-3 text-xs text-white/60">Hoy elegiste no editar este reporte.</div>
+            </Card>
+          ) : mode === "done" ? (
+            <Card>
+              <Summary allowEdit={true} />
+            </Card>
+          ) : (
+            <Card>
+              <div className="grid gap-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <div className="text-xs text-white/60 mb-1">Capítulos leídos</div>
+                    <Input inputMode="numeric" value={chapters} onChange={(e) => setChapters(onlyDigits(e.target.value))} placeholder="0" />
                   </div>
-                  <div className="mt-1 text-xs text-white/60">
-                    Tu cuenta queda registrada automáticamente como <b>Joven</b>.
+
+                  <div>
+                    <div className="text-xs text-white/60 mb-1">Oración</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input inputMode="numeric" value={prayerH} onChange={(e) => setPrayerH(onlyDigits(e.target.value))} placeholder="Horas" />
+                      <Input inputMode="numeric" value={prayerM} onChange={(e) => setPrayerM(onlyDigits(e.target.value))} placeholder="Minutos" />
+                    </div>
                   </div>
                 </div>
 
-                <Button type="button" onClick={signInGoogle} disabled={busy} className="w-full justify-center py-3 text-base">
-                  {busy ? "Conectando…" : "Entrar con Google"}
-                  <ArrowRight size={18} />
-                </Button>
+                <div className="flex justify-end">
+                  <Button variant="primary" onClick={save}>
+                    Guardar
+                  </Button>
+                </div>
 
-                {msg && (
-                  <p className={msg.startsWith("✅") ? "text-sm text-green-300" : "text-sm text-red-300"}>
-                    {msg}
-                  </p>
-                )}
+                <div className="text-xs text-white/50">
+                  Nota: la lectura se registra por <span className="text-white/70">cantidad de capítulos</span>.
+                </div>
               </div>
-            ) : (
-              <div className="mt-5 text-sm text-white/70">
-                Navega con el menú superior.
-              </div>
-            )}
-          </Card>
+            </Card>
+          )}
         </div>
       </PageFade>
     </Container>

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { cached, invalidate } from "@/lib/cache";
 import { Container, Card, Title, Subtitle, PageFade, Stat, Select } from "@/components/ui";
 import LoadingCard from "@/components/LoadingCard";
 import { Globe2, Users2, CalendarDays, BarChart3 } from "lucide-react";
@@ -11,9 +10,11 @@ type WeekRow = {
   group_id: string;
   group_name: string;
   week_start: string;
-  active_youth: number;
-  total_bible_minutes: number;
+  active_youth: number; // total jóvenes del grupo
+  total_bible_chapters: number;
+  avg_bible_chapters_per_youth: number;
   total_prayer_minutes: number;
+  avg_prayer_minutes_per_youth: number;
   total_reports: number;
 };
 
@@ -21,13 +22,15 @@ type MonthRow = {
   group_id: string;
   group_name: string;
   month_start: string;
-  active_youth: number;
-  total_bible_minutes: number;
+  active_youth: number; // total jóvenes del grupo
+  total_bible_chapters: number;
+  avg_bible_chapters_per_youth: number;
   total_prayer_minutes: number;
+  avg_prayer_minutes_per_youth: number;
   total_reports: number;
 };
 
-function formatearMinutos(min: number) {
+function fmtMinutes(min: number) {
   const t = Number.isFinite(min) ? Math.max(0, Math.floor(min)) : 0;
   const h = Math.floor(t / 60);
   const m = t % 60;
@@ -57,16 +60,27 @@ export default function PublicoPage() {
   }, [mode, weekRows, monthRows, latestKey]);
 
   const global = useMemo(() => {
-    return rows.reduce(
-      (acc: any, r: any) => {
-        acc.active_youth += Number(r.active_youth ?? 0);
-        acc.total_bible_minutes += Number(r.total_bible_minutes ?? 0);
-        acc.total_prayer_minutes += Number(r.total_prayer_minutes ?? 0);
-        acc.total_reports += Number(r.total_reports ?? 0);
-        return acc;
-      },
-      { active_youth: 0, total_bible_minutes: 0, total_prayer_minutes: 0, total_reports: 0 }
-    );
+    const acc = {
+      active_youth: 0,
+      total_bible_chapters: 0,
+      total_prayer_minutes: 0,
+      total_reports: 0,
+    };
+
+    for (const r of rows as any[]) {
+      acc.active_youth += Number(r.active_youth ?? 0);
+      acc.total_bible_chapters += Number(r.total_bible_chapters ?? 0);
+      acc.total_prayer_minutes += Number(r.total_prayer_minutes ?? 0);
+      acc.total_reports += Number(r.total_reports ?? 0);
+    }
+
+    const avg_bible_chapters_per_youth =
+      acc.active_youth > 0 ? Number((acc.total_bible_chapters / acc.active_youth).toFixed(2)) : 0;
+
+    const avg_prayer_minutes_per_youth =
+      acc.active_youth > 0 ? Number((acc.total_prayer_minutes / acc.active_youth).toFixed(2)) : 0;
+
+    return { ...acc, avg_bible_chapters_per_youth, avg_prayer_minutes_per_youth };
   }, [rows]);
 
   useEffect(() => {
@@ -74,7 +88,6 @@ export default function PublicoPage() {
       setLoading(true);
       setMsg("");
 
-      // Cargamos SOLO lo más reciente (orden desc y traemos algunas filas)
       const [wRes, mRes] = await Promise.all([
         supabase.from("public_group_stats_week").select("*").order("week_start", { ascending: false }).limit(50),
         supabase.from("public_group_stats_month").select("*").order("month_start", { ascending: false }).limit(50),
@@ -127,20 +140,28 @@ export default function PublicoPage() {
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>
                     <div className="flex items-center gap-2">
-                      {mode === "week" ? <CalendarDays size={18} className="opacity-80" /> : <BarChart3 size={18} className="opacity-80" />}
+                      {mode === "week" ? (
+                        <CalendarDays size={18} className="opacity-80" />
+                      ) : (
+                        <BarChart3 size={18} className="opacity-80" />
+                      )}
                       <div className="text-sm font-semibold">Global</div>
                     </div>
-                    <div className="text-xs text-white/60 mt-1">
-                      {mode === "week" ? `Semana: ${latestKey}` : `Mes: ${latestKey}`}
-                    </div>
+                    <div className="text-xs text-white/60 mt-1">{mode === "week" ? `Semana: ${latestKey}` : `Mes: ${latestKey}`}</div>
                   </div>
                 </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Stat label="Activos (suma de grupos)" value={global.active_youth} />
-                  <Stat label="Lectura total" value={formatearMinutos(global.total_bible_minutes)} />
-                  <Stat label="Oración total" value={formatearMinutos(global.total_prayer_minutes)} />
+                  <Stat label="Jóvenes (suma de grupos)" value={global.active_youth} />
+                  <Stat label="Capítulos (total)" value={global.total_bible_chapters} />
+                  <Stat label="Capítulos (prom./joven)" value={global.avg_bible_chapters_per_youth} />
+                  <Stat label="Oración (total)" value={fmtMinutes(global.total_prayer_minutes)} />
+                </div>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <Stat label="Oración (prom./joven)" value={fmtMinutes(global.avg_prayer_minutes_per_youth)} />
                   <Stat label="Reportes" value={global.total_reports} />
+                  <div className="hidden lg:block" />
                 </div>
               </Card>
 
@@ -149,16 +170,18 @@ export default function PublicoPage() {
                   <Users2 size={18} className="opacity-80" />
                   <div className="text-sm font-semibold">Por grupo</div>
                 </div>
-                <Subtitle>Comparación simple entre grupos.</Subtitle>
+                <Subtitle>Comparación entre grupos (total y promedio por joven).</Subtitle>
 
                 <div className="mt-4 overflow-auto">
                   <table className="w-full text-sm">
                     <thead className="text-white/70">
                       <tr className="border-b border-white/10">
                         <th className="text-left py-3 pr-3">Grupo</th>
-                        <th className="text-left py-3 pr-3">Activos</th>
-                        <th className="text-left py-3 pr-3">Lectura</th>
-                        <th className="text-left py-3 pr-3">Oración</th>
+                        <th className="text-left py-3 pr-3">Jóvenes</th>
+                        <th className="text-left py-3 pr-3">Capítulos (total)</th>
+                        <th className="text-left py-3 pr-3">Capítulos (prom.)</th>
+                        <th className="text-left py-3 pr-3">Oración (total)</th>
+                        <th className="text-left py-3 pr-3">Oración (prom.)</th>
                         <th className="text-left py-3 pr-3">Reportes</th>
                       </tr>
                     </thead>
@@ -167,15 +190,17 @@ export default function PublicoPage() {
                         <tr key={r.group_id} className="border-b border-white/5">
                           <td className="py-3 pr-3 font-medium">{r.group_name}</td>
                           <td className="py-3 pr-3">{r.active_youth}</td>
-                          <td className="py-3 pr-3">{formatearMinutos(r.total_bible_minutes)}</td>
-                          <td className="py-3 pr-3">{formatearMinutos(r.total_prayer_minutes)}</td>
+                          <td className="py-3 pr-3">{r.total_bible_chapters}</td>
+                          <td className="py-3 pr-3">{r.avg_bible_chapters_per_youth}</td>
+                          <td className="py-3 pr-3">{fmtMinutes(r.total_prayer_minutes)}</td>
+                          <td className="py-3 pr-3">{fmtMinutes(r.avg_prayer_minutes_per_youth)}</td>
                           <td className="py-3 pr-3">{r.total_reports}</td>
                         </tr>
                       ))}
 
                       {rows.length === 0 && (
                         <tr>
-                          <td className="py-4 text-white/70" colSpan={5}>
+                          <td className="py-4 text-white/70" colSpan={7}>
                             No hay datos en este periodo.
                           </td>
                         </tr>

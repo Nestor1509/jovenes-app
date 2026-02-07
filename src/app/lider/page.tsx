@@ -6,9 +6,9 @@ import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
 import { cached, invalidate } from "@/lib/cache";
 import { useMyProfile } from "@/lib/useMyProfile";
-import { Container, Card, Title, Subtitle, PageFade, Stat, Select, Button, Skeleton, EmptyState } from "@/components/ui";
+import { Container, Card, Title, Subtitle, PageFade, Stat, Select } from "@/components/ui";
 import LoadingCard from "@/components/LoadingCard";
-import { Users, CalendarDays, BarChart3, Trophy, RefreshCw, FileDown } from "lucide-react";
+import { Users, CalendarDays, BarChart3, Trophy, RefreshCw } from "lucide-react";
 const TopYouthBars = dynamic(() => import("@/components/charts/TopYouthBars"), { ssr: false });
 
 
@@ -18,8 +18,10 @@ type WeekStats = {
   group_id: string;
   week_start: string;
   active_youth: number;
-  total_bible_minutes: number;
+  total_bible_chapters: number;
+  avg_bible_chapters_per_youth: number;
   total_prayer_minutes: number;
+  avg_prayer_minutes_per_youth: number;
   total_reports: number;
 };
 
@@ -27,8 +29,10 @@ type MonthStats = {
   group_id: string;
   month_start: string;
   active_youth: number;
-  total_bible_minutes: number;
+  total_bible_chapters: number;
+  avg_bible_chapters_per_youth: number;
   total_prayer_minutes: number;
+  avg_prayer_minutes_per_youth: number;
   total_reports: number;
 };
 
@@ -36,7 +40,7 @@ type YouthTotals = {
   user_id: string;
   name: string;
   group_id: string;
-  total_bible_minutes: number;
+  total_bible_chapters: number;
   total_prayer_minutes: number;
   total_reports: number;
 };
@@ -95,62 +99,6 @@ export default function LiderPage() {
   const today = useMemo(() => hoyISO(), []);
   const defaultWeek = useMemo(() => inicioSemanaISO(today), [today]);
   const defaultMonth = useMemo(() => inicioMesISO(today), [today]);
-
-  function rangeFromSelection() {
-    // Si hay week seleccionada, exportamos esa semana.
-    if (selectedWeek) {
-      const start = selectedWeek;
-      const d = new Date(start + "T00:00:00Z");
-      d.setUTCDate(d.getUTCDate() + 6);
-      const end = d.toISOString().slice(0, 10);
-      return { from: start, to: end };
-    }
-
-    // Si hay mes seleccionado, exportamos el mes.
-    if (selectedMonth) {
-      const start = `${selectedMonth}-01`;
-      const d = new Date(start + "T00:00:00Z");
-      // último día del mes: ir al 1 del siguiente mes -1
-      d.setUTCMonth(d.getUTCMonth() + 1);
-      d.setUTCDate(0);
-      const end = d.toISOString().slice(0, 10);
-      return { from: start, to: end };
-    }
-
-    return { from: defaultWeek, to: today };
-  }
-
-  async function exportar(tipo: "xlsx" | "pdf") {
-    try {
-      setMsg("");
-      const token = session?.access_token;
-      if (!token) throw new Error("Sesión inválida.");
-
-      const { from, to } = rangeFromSelection();
-      // Solo exportación Excel/CSV (PDF removido)
-      const endpoint = "/api/export/reports/xlsx";
-      const params = new URLSearchParams({ from, to });
-      const res = await fetch(`${endpoint}?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const blob = await res.blob();
-      if (!res.ok) {
-        const txt = await blob.text().catch(() => "");
-        throw new Error(txt || "No se pudo exportar.");
-      }
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `reportes-${from}-a-${to}.${tipo}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e: any) {
-      setMsg(String(e?.message || "No se pudo exportar."));
-    }
-  }
 
   async function cargarBase() {
     setMsg("");
@@ -261,18 +209,19 @@ export default function LiderPage() {
   const topData = useMemo(() => {
     const sorted = [...youth].sort((a, b) => {
       const av =
-        topMode === "bible" ? a.total_bible_minutes : topMode === "prayer" ? a.total_prayer_minutes : a.total_reports;
+        topMode === "bible" ? a.total_bible_chapters : topMode === "prayer" ? a.total_prayer_minutes : a.total_reports;
       const bv =
-        topMode === "bible" ? b.total_bible_minutes : topMode === "prayer" ? b.total_prayer_minutes : b.total_reports;
+        topMode === "bible" ? b.total_bible_chapters : topMode === "prayer" ? b.total_prayer_minutes : b.total_reports;
       return Number(bv ?? 0) - Number(av ?? 0);
     });
 
     return sorted.slice(0, 10).map((y) => ({
+      unit: topMode === "bible" ? "chapters" : topMode === "prayer" ? "minutes" : "reports",
       name: y.name.length > 12 ? y.name.slice(0, 12) + "…" : y.name,
       fullName: y.name,
       value:
         topMode === "bible"
-          ? Number(y.total_bible_minutes ?? 0)
+          ? Number(y.total_bible_chapters ?? 0)
           : topMode === "prayer"
           ? Number(y.total_prayer_minutes ?? 0)
           : Number(y.total_reports ?? 0),
@@ -294,29 +243,7 @@ export default function LiderPage() {
     );
   }
 
-  if (loading)
-    return (
-      <Container>
-        <PageFade>
-          <div className="grid gap-6">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <Skeleton className="h-7 w-48" />
-                <Skeleton className="mt-2 h-4 w-72" />
-              </div>
-              <Skeleton className="h-10 w-44" />
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-              <Skeleton className="h-24" />
-              <Skeleton className="h-24" />
-              <Skeleton className="h-24" />
-              <Skeleton className="h-24" />
-            </div>
-            <Skeleton className="h-[360px]" />
-          </div>
-        </PageFade>
-      </Container>
-    );
+  if (loading) return <LoadingCard text="Cargando panel de líder…" />;
 
   return (
     <Container>
@@ -328,14 +255,12 @@ export default function LiderPage() {
               <Subtitle>{group ? `Grupo: ${group.name} (solo jóvenes)` : "Estadísticas del grupo"}</Subtitle>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              <Button onClick={() => exportar("xlsx")} className="inline-flex items-center gap-2">
-                <FileDown size={16} /> Excel
-              </Button>
-              <Button onClick={cargarBase} variant="ghost" className="inline-flex items-center gap-2">
-                <RefreshCw size={16} /> Actualizar
-              </Button>
-            </div>
+            <button
+              onClick={cargarBase}
+              className="px-3 py-2 rounded-xl hover:bg-white/10 text-sm inline-flex items-center gap-2"
+            >
+              <RefreshCw size={16} /> Actualizar
+            </button>
           </div>
 
           {msg && <div className="text-red-300 text-sm">{msg}</div>}
@@ -366,8 +291,10 @@ export default function LiderPage() {
                 {weekStats ? (
                   <div className="grid gap-2">
                     <Stat label="Jóvenes activos" value={Number(weekStats.active_youth ?? 0)} />
-                    <Stat label="Lectura total" value={formatearMinutos(weekStats.total_bible_minutes)} />
-                    <Stat label="Oración total" value={formatearMinutos(weekStats.total_prayer_minutes)} />
+                    <Stat label="Capítulos (total)" value={Number(weekStats.total_bible_chapters ?? 0)} />
+                    <Stat label="Capítulos (prom./joven)" value={Number(weekStats.avg_bible_chapters_per_youth ?? 0)} />
+                    <Stat label="Oración (total)" value={formatearMinutos(weekStats.total_prayer_minutes)} />
+                    <Stat label="Oración (prom./joven)" value={formatearMinutos(weekStats.avg_prayer_minutes_per_youth)} />
                     <Stat label="Reportes" value={Number(weekStats.total_reports ?? 0)} />
                   </div>
                 ) : (
@@ -401,8 +328,10 @@ export default function LiderPage() {
                 {monthStats ? (
                   <div className="grid gap-2">
                     <Stat label="Jóvenes activos" value={Number(monthStats.active_youth ?? 0)} />
-                    <Stat label="Lectura total" value={formatearMinutos(monthStats.total_bible_minutes)} />
-                    <Stat label="Oración total" value={formatearMinutos(monthStats.total_prayer_minutes)} />
+                    <Stat label="Capítulos (total)" value={Number(monthStats.total_bible_chapters ?? 0)} />
+                    <Stat label="Capítulos (prom./joven)" value={Number(monthStats.avg_bible_chapters_per_youth ?? 0)} />
+                    <Stat label="Oración (total)" value={formatearMinutos(monthStats.total_prayer_minutes)} />
+                    <Stat label="Oración (prom./joven)" value={formatearMinutos(monthStats.avg_prayer_minutes_per_youth)} />
                     <Stat label="Reportes" value={Number(monthStats.total_reports ?? 0)} />
                   </div>
                 ) : (
@@ -425,7 +354,7 @@ export default function LiderPage() {
               <div className="w-full sm:w-64">
                 <div className="text-xs text-white/60 mb-1">Ordenar por</div>
                 <Select value={topMode} onChange={(e) => setTopMode(e.target.value as any)}>
-                  <option value="bible">Lectura (minutos)</option>
+                  <option value="bible">Capítulos (minutos)</option>
                   <option value="prayer">Oración (minutos)</option>
                   <option value="reports">Reportes (cantidad)</option>
                 </Select>
@@ -433,15 +362,7 @@ export default function LiderPage() {
             </div>
 
             <div className="mt-4">
-              {topData.length === 0 ? (
-                <EmptyState
-                  title="Aún no hay datos"
-                  description="Cuando los jóvenes envíen reportes, verás el Top 10 aquí."
-                  action={<Trophy className="h-5 w-5 text-amber-400" />}
-                />
-              ) : (
-                <TopYouthBars data={topData as any} />
-              )}
+              {topData.length === 0 ? <div className="text-sm text-white/70">Aún no hay datos para mostrar.</div> : <TopYouthBars data={topData as any} />}
             </div>
           </Card>
 
@@ -457,7 +378,7 @@ export default function LiderPage() {
                 <thead className="text-white/70">
                   <tr className="border-b border-white/10">
                     <th className="text-left py-3 pr-3">Nombre</th>
-                    <th className="text-left py-3 pr-3">Lectura</th>
+                    <th className="text-left py-3 pr-3">Capítulos</th>
                     <th className="text-left py-3 pr-3">Oración</th>
                     <th className="text-left py-3 pr-3">Detalle</th>
                     <th className="text-left py-3 pr-3">Reportes</th>
@@ -467,7 +388,7 @@ export default function LiderPage() {
                   {youth.map((y) => (
                     <tr key={y.user_id} className="border-b border-white/5">
                       <td className="py-3 pr-3 font-medium">{y.name}</td>
-                      <td className="py-3 pr-3">{formatearMinutos(y.total_bible_minutes)}</td>
+                      <td className="py-3 pr-3">{Number(y.total_bible_chapters ?? 0)}</td>
                       <td className="py-3 pr-3">{formatearMinutos(y.total_prayer_minutes)}</td>
                       
 <td className="py-3 pr-3">

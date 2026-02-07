@@ -2,7 +2,7 @@
 
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 
-function fmtMinutes(min: number) {
+function fmtMinutesShort(min: number) {
   const t = Math.max(0, Math.floor(Number(min || 0)));
   const h = Math.floor(t / 60);
   const m = t % 60;
@@ -11,13 +11,20 @@ function fmtMinutes(min: number) {
   return `${h}h ${m}m`;
 }
 
-export function TrendLine({
+function fmtMinutesLong(min: number) {
+  const t = Math.max(0, Math.floor(Number(min || 0)));
+  const h = Math.floor(t / 60);
+  const m = t % 60;
+  if (h <= 0) return `${m} min`;
+  if (m === 0) return `${h} h`;
+  return `${h} h ${m} min`;
+}
+
+export default function TrendLine({
   data,
   height = 240,
 }: {
-  // Nota: el resto de la app usa llaves en español (lectura/oracion).
-  // Si aquí esperamos bible/prayer, Recharts no encuentra los dataKey y la gráfica queda vacía.
-  data: Array<{ label: string; lectura: number; oracion: number }>;
+  data: Array<{ label: string; chapters: number; prayer: number }>;
   height?: number;
 }) {
   return (
@@ -25,7 +32,7 @@ export function TrendLine({
       <ResponsiveContainer width="100%" height="100%" minHeight={height}>
         <LineChart data={data} margin={{ top: 10, right: 18, left: 0, bottom: 18 }}>
           <defs>
-            <linearGradient id="tl_bible" x1="0" y1="0" x2="1" y2="0">
+            <linearGradient id="tl_chapters" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="rgba(245,158,11,0.85)" />
               <stop offset="100%" stopColor="rgba(245,158,11,0.35)" />
             </linearGradient>
@@ -45,13 +52,25 @@ export function TrendLine({
             minTickGap={12}
             height={36}
           />
+
           <YAxis
+            yAxisId="left"
             tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 12 }}
             tickLine={false}
             axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
-            width={40}
-            tickFormatter={(v) => fmtMinutes(Number(v))}
+            width={42}
+            allowDecimals={false}
           />
+          <YAxis
+            yAxisId="right"
+            orientation="right"
+            tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 12 }}
+            tickLine={false}
+            axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
+            width={42}
+            tickFormatter={(v) => fmtMinutesShort(Number(v))}
+          />
+
           <Tooltip
             contentStyle={{
               background: "rgba(10,10,12,0.80)",
@@ -61,25 +80,31 @@ export function TrendLine({
               color: "white",
             }}
             labelStyle={{ color: "rgba(255,255,255,0.85)" }}
-            formatter={(value: any, name) => [fmtMinutes(Number(value)), name === "lectura" ? "Lectura" : "Oración"]}
+            formatter={(value: any, name) => {
+              if (name === "chapters") return [String(Math.max(0, Math.floor(Number(value || 0)))), "Capítulos"];
+              return [fmtMinutesLong(Number(value)), "Oración"];
+            }}
           />
           <Legend
             verticalAlign="top"
             height={28}
             formatter={(value) => <span style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>{value}</span>}
           />
+
           <Line
             type="monotone"
-            dataKey="lectura"
-            name="Lectura"
-            stroke="url(#tl_bible)"
+            dataKey="chapters"
+            yAxisId="left"
+            name="Capítulos"
+            stroke="url(#tl_chapters)"
             strokeWidth={3}
             dot={false}
             activeDot={{ r: 5 }}
           />
           <Line
             type="monotone"
-            dataKey="oracion"
+            dataKey="prayer"
+            yAxisId="right"
             name="Oración"
             stroke="url(#tl_prayer)"
             strokeWidth={3}
@@ -91,6 +116,3 @@ export function TrendLine({
     </div>
   );
 }
-
-
-export default TrendLine;

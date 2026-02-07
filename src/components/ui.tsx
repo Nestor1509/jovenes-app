@@ -1,17 +1,10 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { HTMLMotionProps, motion } from "framer-motion";
+import { motion } from "framer-motion";
 
-import React from "react";
-
-type Props = React.HTMLAttributes<HTMLDivElement>;
-type PageFadeProps = HTMLMotionProps<"div">;
-
-export function Container({ className, ...props }: Props) {
-  return (
-    <div className={cn("mx-auto w-full max-w-6xl px-4", className)} {...props} />
-  );
+export function Container({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("mx-auto w-full max-w-6xl px-4", className)} {...props} />;
 }
 
 export function Card({
@@ -36,20 +29,12 @@ export function Card({
 }
 
 
-export function Title({ className, children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return (
-    <h1 className={cn("text-2xl font-semibold tracking-tight", className)} {...props}>
-      {children}
-    </h1>
-  );
+export function Title({ children }: { children: React.ReactNode }) {
+  return <h1 className="text-2xl font-semibold tracking-tight">{children}</h1>;
 }
 
-export function Subtitle({ className, children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return (
-    <p className={cn("text-sm text-white/70 leading-relaxed", className)} {...props}>
-      {children}
-    </p>
-  );
+export function Subtitle({ children }: { children: React.ReactNode }) {
+  return <p className="text-sm text-white/70 leading-relaxed">{children}</p>;
 }
 
 type BtnVariant = "primary" | "ghost" | "subtle";
@@ -60,11 +45,11 @@ export function Button({
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: BtnVariant }) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60 focus-visible:ring-offset-0-semibold transition focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-60 disabled:cursor-not-allowed";
+    "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-60 disabled:cursor-not-allowed";
   const styles: Record<BtnVariant, string> = {
     primary: "btn-primary text-zinc-950",
     ghost: "btn-ghost text-white",
-    subtle: "rounded-xl px-4 py-2 text-sm font outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60 focus-visible:ring-offset-0-semibold bg-white/5 border border-white/10 hover:bg-white/10",
+    subtle: "rounded-xl px-4 py-2 text-sm font-semibold bg-white/5 border border-white/10 hover:bg-white/10",
   };
 
   const { onDrag, onDragStart, onDragEnd, ...safeProps } = props as any;
@@ -87,26 +72,19 @@ export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInp
 export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={cn("input pr-8 transition-colors hover:border-white/20 focus:border-amber-400/40", className)}
+      className={cn("input pr-8", className)}
       {...props}
     />
   );
 }
 
-export function PageFade({ className, children, ...props }: PageFadeProps) {
+export function PageFade({ children }: { children: React.ReactNode }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22 }}
-      className={className}
-      {...props}
-    >
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
       {children}
     </motion.div>
   );
 }
-
 
 export function Stat({ label, value }: { label: string; value: string | number }) {
   return (
@@ -123,36 +101,4 @@ export function Badge({ children, className }: { children: React.ReactNode; clas
 
 export function Divider({ className }: { className?: string }) {
   return <div className={cn("h-px w-full bg-white/10", className)} />;
-}
-
-
-export function Skeleton({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn(
-        "animate-pulse rounded-2xl bg-white/10",
-        className
-      )}
-    />
-  );
-}
-
-export function EmptyState({
-  title = "Sin datos",
-  description = "Aún no hay información para mostrar.",
-  action,
-}: {
-  title?: string;
-  description?: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <Card className="p-6">
-      <div className="space-y-2">
-        <Title className="text-lg">{title}</Title>
-        <Subtitle>{description}</Subtitle>
-        {action ? <div className="pt-2">{action}</div> : null}
-      </div>
-    </Card>
-  );
 }

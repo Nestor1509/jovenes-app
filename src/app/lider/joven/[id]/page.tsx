@@ -8,11 +8,18 @@ import { cached } from "@/lib/cache";
 import { useMyProfile, Profile } from "@/lib/useMyProfile";
 import { Container, Card, Title, Subtitle, PageFade, Stat, Button, Input } from "@/components/ui";
 import LoadingCard from "@/components/LoadingCard";
-import { ArrowLeft, CalendarDays, RefreshCw } from "lucide-react";
+import { ArrowLeft, CalendarDays, RefreshCw, X } from "lucide-react";
 const TrendLine = dynamicImport(() => import("@/components/charts/TrendLine"), { ssr: false });
 
 
-type ReportRow = { report_date: string; chapters_count: number; prayer_minutes: number };
+type ReportRow = {
+  report_date: string;
+  bible_minutes: number;
+  prayer_minutes: number;
+  chapters_count?: number | null;
+  bible_chapters?: string | null;
+  prayer_topic?: string | null;
+};
 
 function isoToday() {
   const d = new Date();
@@ -35,12 +42,7 @@ function minusDays(iso: string, days: number) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function fmtCapitulos(n: number) {
-  const v = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
-  return `${v} cap`;
-}
-
-function fmtOracion(min: number) {
+function fmtMinutes(min: number) {
   const t = Math.max(0, Math.floor(Number(min || 0)));
   const h = Math.floor(t / 60);
   const m = t % 60;
@@ -74,6 +76,7 @@ export default function LiderJovenDetallePage() {
 
   const [youth, setYouth] = useState<Profile | null>(null);
   const [rows, setRows] = useState<ReportRow[]>([]);
+  const [selected, setSelected] = useState<ReportRow | null>(null);
 
   const today = useMemo(() => isoToday(), []);
   const [from, setFrom] = useState(minusDays(today, 30));
@@ -135,7 +138,7 @@ export default function LiderJovenDetallePage() {
     // 2) Reportes del rango
     const rRes = await supabase
       .from("reports")
-      .select("report_date,chapters_count,prayer_minutes")
+      .select("report_date,bible_minutes,prayer_minutes,chapters_count,bible_chapters,prayer_topic")
       .eq("user_id", youthId)
       .gte("report_date", from)
       .lte("report_date", to)
@@ -148,6 +151,7 @@ export default function LiderJovenDetallePage() {
     }
 
     setRows((rRes.data ?? []) as any);
+    setSelected(null);
     setLoading(false);
   }
 
@@ -166,7 +170,7 @@ export default function LiderJovenDetallePage() {
   const totals = useMemo(() => {
     let b = 0, p = 0;
     for (const r of rows) {
-      b += Number(r.chapters_count ?? 0);
+      b += Number(r.bible_minutes ?? 0);
       p += Number(r.prayer_minutes ?? 0);
     }
     return { bible: b, prayer: p, reports: rows.length };
@@ -177,7 +181,7 @@ export default function LiderJovenDetallePage() {
     for (const r of rows) {
       const k = weekKey(r.report_date);
       const cur = map.get(k) ?? { bible: 0, prayer: 0 };
-      cur.bible += Number(r.chapters_count ?? 0);
+      cur.bible += Number(r.bible_minutes ?? 0);
       cur.prayer += Number(r.prayer_minutes ?? 0);
       map.set(k, cur);
     }
@@ -270,8 +274,8 @@ export default function LiderJovenDetallePage() {
               <Card>
                 <div className="text-sm font-semibold mb-3">Resumen del rango</div>
                 <div className="grid gap-3 md:grid-cols-3">
-                  <Stat label="Capítulos" value={fmtOracion(totals.bible)} />
-                  <Stat label="Oración" value={fmtOracion(totals.prayer)} />
+                  <Stat label="Lectura" value={fmtMinutes(totals.bible)} />
+                  <Stat label="Oración" value={fmtMinutes(totals.prayer)} />
                   <Stat label="Reportes" value={totals.reports} />
                 </div>
               </Card>
@@ -283,7 +287,11 @@ export default function LiderJovenDetallePage() {
                   {trend.length < 2 ? (
                     <div className="text-sm text-white/70">No hay suficientes datos para mostrar la tendencia.</div>
                   ) : (
-                    <TrendLine data={trend} />
+                    <TrendLine data={trend.map(t => ({
+                      label: t.label,
+                      lectura: t.bible,
+                      oracion: t.prayer,
+                    }))} />
                   )}
                 </div>
               </Card>
@@ -296,16 +304,20 @@ export default function LiderJovenDetallePage() {
                     <thead className="text-white/70">
                       <tr className="border-b border-white/10">
                         <th className="text-left py-2 pr-3">Fecha</th>
-                        <th className="text-left py-2 pr-3">Capítulos</th>
+                        <th className="text-left py-2 pr-3">Lectura</th>
                         <th className="text-left py-2 pr-3">Oración</th>
                       </tr>
                     </thead>
                     <tbody>
                       {rows.map((r) => (
-                        <tr key={r.report_date} className="border-b border-white/5">
+                        <tr
+                          key={r.report_date}
+                          onClick={() => setSelected(r)}
+                          className="border-b border-white/5 hover:bg-white/5 cursor-pointer"
+                        >
                           <td className="py-2 pr-3">{r.report_date}</td>
-                          <td className="py-2 pr-3">{fmtOracion(Number(r.chapters_count ?? 0))}</td>
-                          <td className="py-2 pr-3">{fmtOracion(Number(r.prayer_minutes ?? 0))}</td>
+                          <td className="py-2 pr-3">{fmtMinutes(Number(r.bible_minutes ?? 0))}</td>
+                          <td className="py-2 pr-3">{fmtMinutes(Number(r.prayer_minutes ?? 0))}</td>
                         </tr>
                       ))}
                       {rows.length === 0 && (
@@ -316,6 +328,47 @@ export default function LiderJovenDetallePage() {
                     </tbody>
                   </table>
                 </div>
+
+                {selected && (
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold">Reporte del {selected.report_date}</div>
+                        <div className="text-xs text-white/60 mt-1">Detalles del reporte (caps/temas si aplica).</div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        className="!px-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelected(null);
+                        }}
+                      >
+                        <X size={16} />
+                      </Button>
+                    </div>
+
+                    <div className="mt-3 grid gap-3 md:grid-cols-3">
+                      <Stat label="Lectura" value={fmtMinutes(Number(selected.bible_minutes ?? 0))} />
+                      <Stat label="Oración" value={fmtMinutes(Number(selected.prayer_minutes ?? 0))} />
+                      <Stat
+                        label="Caps"
+                        value={
+                          selected.chapters_count === null || selected.chapters_count === undefined
+                            ? "—"
+                            : String(selected.chapters_count)
+                        }
+                      />
+                    </div>
+
+                    <div className="mt-3 grid gap-2">
+                      <div className="text-xs text-white/60">Lectura (capítulos):</div>
+                      <div className="text-sm whitespace-pre-wrap">{selected.bible_chapters?.trim() ? selected.bible_chapters : "—"}</div>
+                      <div className="text-xs text-white/60 mt-2">Tema de oración:</div>
+                      <div className="text-sm whitespace-pre-wrap">{selected.prayer_topic?.trim() ? selected.prayer_topic : "—"}</div>
+                    </div>
+                  </div>
+                )}
               </Card>
             </>
           )}

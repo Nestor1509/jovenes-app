@@ -123,10 +123,11 @@ export default function ReportePage() {
   const onlyDigits = (v: string) => v.replace(/[^\d]/g, "");
 
   function loadExistingIntoForm() {
-    setChapters(String(existing?.chapters_count ?? 0));
+    const ch = Number(existing?.chapters_count ?? 0);
+    setChapters(ch > 0 ? String(ch) : "");
     const p = fromMinutes(existing?.prayer_minutes ?? 0);
-    setPrayerH(String(p.h));
-    setPrayerM(String(p.m));
+    setPrayerH(p.h > 0 ? String(p.h) : "");
+    setPrayerM(p.m > 0 ? String(p.m) : "");
   }
 
   async function save() {
@@ -211,7 +212,7 @@ export default function ReportePage() {
               </Button>
 
               <Button
-                variant="ghost"
+                variant="secondary"
                 onClick={() => {
                   try {
                     localStorage.setItem(lockKey(dateKey), "1");

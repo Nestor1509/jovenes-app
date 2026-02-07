@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useMyProfile } from "@/lib/useMyProfile";
-import { Container, Card, Title, Subtitle, PageFade, Input, Select, Button } from "@/components/ui";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Container, Card, Title, Subtitle, PageFade, Input, Select, Button, Skeleton, EmptyState } from "@/components/ui";
 import LoadingCard from "@/components/LoadingCard";
 import { ArrowLeft, RefreshCw, Shield, Search } from "lucide-react";
 
@@ -212,12 +211,7 @@ export default function AdminHistorialPage() {
             </div>
           </Card>
         ) : rows.length === 0 ? (
-          <Card>
-            <div className="text-center py-8">
-              <Title>Sin eventos</Title>
-              <Subtitle>No hay acciones registradas con esos filtros.</Subtitle>
-            </div>
-          </Card>
+          <EmptyState title="Sin eventos" description="No hay acciones registradas con esos filtros." />
         ) : (
           <Card>
             <div className="overflow-auto">

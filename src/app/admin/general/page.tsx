@@ -7,7 +7,7 @@ import { cached, invalidate } from "@/lib/cache";
 import { useMyProfile } from "@/lib/useMyProfile";
 import { Container, Card, Title, Subtitle, PageFade, Stat, Button, Select, Input } from "@/components/ui";
 import LoadingCard from "@/components/LoadingCard";
-import { Users, ArrowLeft, CalendarDays, Trophy } from "lucide-react";
+import { Users, ArrowLeft, CalendarDays, Trophy, FileDown } from "lucide-react";
 
 type Perfil = {
   id: string;
@@ -20,16 +20,11 @@ type Perfil = {
 type ReportRow = {
   user_id: string;
   report_date: string;
-  chapters_count: number;
+  bible_minutes: number;
   prayer_minutes: number;
 };
 
-function formatearCapitulos(n: any) {
-  const v = Math.max(0, Math.floor(Number(n ?? 0)));
-  return `${v} cap`;
-}
-
-function formatearOracion(min: any) {
+function formatearMinutos(min: any) {
   const t = Math.max(0, Math.floor(Number(min ?? 0)));
   const h = Math.floor(t / 60);
   const m = t % 60;
@@ -64,6 +59,37 @@ export default function AdminGeneralPage() {
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
 
+  async function descargar(tipo: "xlsx" | "pdf") {
+    try {
+      if (!me) return;
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) throw new Error("Sesión inválida.");
+
+      // Solo exportación Excel/CSV (PDF removido)
+      const endpoint = "/api/export/reports/xlsx";
+      const params = new URLSearchParams({ from: fromDate, to: toDate });
+      const res = await fetch(`${endpoint}?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const blob = await res.blob();
+      if (!res.ok) {
+        const txt = await blob.text().catch(() => "");
+        throw new Error(txt || "No se pudo exportar.");
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `reportes-${fromDate}-a-${toDate}.${tipo}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setError(String(e?.message || "No se pudo exportar."));
+    }
+  }
+
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -93,7 +119,7 @@ export default function AdminGeneralPage() {
 
       const rRes = await supabase
         .from("reports")
-        .select("user_id,report_date,chapters_count,prayer_minutes")
+        .select("user_id,report_date,bible_minutes,prayer_minutes")
         .gte("report_date", fromDate)
         .lte("report_date", toDate);
 
@@ -115,7 +141,7 @@ export default function AdminGeneralPage() {
     const map = new Map<string, { bible: number; prayer: number; reports: number; last?: string }>();
     for (const r of reports) {
       const prev = map.get(r.user_id) ?? { bible: 0, prayer: 0, reports: 0 };
-      prev.bible += Number(r.chapters_count ?? 0);
+      prev.bible += Number(r.bible_minutes ?? 0);
       prev.prayer += Number(r.prayer_minutes ?? 0);
       prev.reports += 1;
       if (!prev.last || r.report_date > prev.last) prev.last = r.report_date;
@@ -130,7 +156,7 @@ export default function AdminGeneralPage() {
       const s = byUser.get(p.id) ?? { bible: 0, prayer: 0, reports: 0, last: undefined };
       return {
         ...p,
-        chapters_count: s.bible,
+        bible_minutes: s.bible,
         prayer_minutes: s.prayer,
         reports: s.reports,
         total_minutes: s.bible + s.prayer,
@@ -151,7 +177,7 @@ export default function AdminGeneralPage() {
     const t = { users: perfiles.length, reports: 0, bible: 0, prayer: 0 };
     for (const r of reports) {
       t.reports += 1;
-      t.bible += Number(r.chapters_count ?? 0);
+      t.bible += Number(r.bible_minutes ?? 0);
       t.prayer += Number(r.prayer_minutes ?? 0);
     }
     return t;
@@ -169,7 +195,7 @@ export default function AdminGeneralPage() {
       const role = roleById.get(r.user_id);
       if (!role) continue;
       acc[role].reports += 1;
-      acc[role].bible += Number(r.chapters_count ?? 0);
+      acc[role].bible += Number(r.bible_minutes ?? 0);
       acc[role].prayer += Number(r.prayer_minutes ?? 0);
     }
     return acc;
@@ -189,7 +215,12 @@ export default function AdminGeneralPage() {
             <Subtitle>Incluye jóvenes, líderes y admins. Rango editable y ranking total.</Subtitle>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div className="flex items-center gap-2">
+              <Button onClick={() => descargar("xlsx")} className="inline-flex items-center gap-2">
+                <FileDown size={16} /> Excel
+              </Button>
+            </div>
             <div className="grid gap-1">
               <div className="text-xs text-white/60">Desde</div>
               <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
@@ -214,8 +245,8 @@ export default function AdminGeneralPage() {
             <div className="grid gap-3 md:grid-cols-4 mb-6">
               <Stat label="Personas (total)" value={totals.users} />
               <Stat label="Reportes" value={totals.reports} />
-              <Stat label="Lectura total" value={formatearOracion(totals.bible)} />
-              <Stat label="Oración total" value={formatearOracion(totals.prayer)} />
+              <Stat label="Lectura total" value={formatearMinutos(totals.bible)} />
+              <Stat label="Oración total" value={formatearMinutos(totals.prayer)} />
             </div>
 
             <Card className="mb-6">
@@ -238,8 +269,8 @@ export default function AdminGeneralPage() {
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <Stat label="Personas" value={roleTotals[r].users} />
                       <Stat label="Reportes" value={roleTotals[r].reports} />
-                      <Stat label="Lectura" value={formatearOracion(roleTotals[r].bible)} />
-                      <Stat label="Oración" value={formatearOracion(roleTotals[r].prayer)} />
+                      <Stat label="Lectura" value={formatearMinutos(roleTotals[r].bible)} />
+                      <Stat label="Oración" value={formatearMinutos(roleTotals[r].prayer)} />
                     </div>
                   </div>
                 ))}
@@ -281,10 +312,10 @@ export default function AdminGeneralPage() {
                         <td className="py-2 pr-3 font-medium">{r.name}</td>
                         <td className="py-2 pr-3 text-white/80">{roleLabel(r.role)}</td>
                         <td className="py-2 pr-3 text-white/80">{r.group_name}</td>
-                        <td className="py-2 pr-3 text-right">{formatearCapitulos(r.chapters_count)}</td>
-                        <td className="py-2 pr-3 text-right">{formatearOracion(r.prayer_minutes)}</td>
+                        <td className="py-2 pr-3 text-right">{formatearMinutos(r.bible_minutes)}</td>
+                        <td className="py-2 pr-3 text-right">{formatearMinutos(r.prayer_minutes)}</td>
                         <td className="py-2 pr-3 text-right">{r.reports}</td>
-                        <td className="py-2 pr-3 text-right font-semibold">{formatearOracion(r.total_minutes)}</td>
+                        <td className="py-2 pr-3 text-right font-semibold">{formatearMinutos(r.total_minutes)}</td>
                         <td className="py-2 text-right">
                           <Link
                             className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 transition"

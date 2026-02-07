@@ -27,12 +27,7 @@ type MonthRow = {
   total_reports: number;
 };
 
-function formatearCapitulos(n: number) {
-  const v = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
-  return `${v} cap`;
-}
-
-function formatearOracion(min: number) {
+function formatearMinutos(min: number) {
   const t = Number.isFinite(min) ? Math.max(0, Math.floor(min)) : 0;
   const h = Math.floor(t / 60);
   const m = t % 60;
@@ -143,8 +138,8 @@ export default function PublicoPage() {
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <Stat label="Activos (suma de grupos)" value={global.active_youth} />
-                  <Stat label="Capítulos total" value={formatearCapitulos(global.total_bible_minutes)} />
-                  <Stat label="Oración total" value={formatearOracion(global.total_prayer_minutes)} />
+                  <Stat label="Lectura total" value={formatearMinutos(global.total_bible_minutes)} />
+                  <Stat label="Oración total" value={formatearMinutos(global.total_prayer_minutes)} />
                   <Stat label="Reportes" value={global.total_reports} />
                 </div>
               </Card>
@@ -162,7 +157,7 @@ export default function PublicoPage() {
                       <tr className="border-b border-white/10">
                         <th className="text-left py-3 pr-3">Grupo</th>
                         <th className="text-left py-3 pr-3">Activos</th>
-                        <th className="text-left py-3 pr-3">Capítulos</th>
+                        <th className="text-left py-3 pr-3">Lectura</th>
                         <th className="text-left py-3 pr-3">Oración</th>
                         <th className="text-left py-3 pr-3">Reportes</th>
                       </tr>
@@ -172,8 +167,8 @@ export default function PublicoPage() {
                         <tr key={r.group_id} className="border-b border-white/5">
                           <td className="py-3 pr-3 font-medium">{r.group_name}</td>
                           <td className="py-3 pr-3">{r.active_youth}</td>
-                          <td className="py-3 pr-3">{formatearCapitulos(r.total_bible_minutes)}</td>
-                          <td className="py-3 pr-3">{formatearOracion(r.total_prayer_minutes)}</td>
+                          <td className="py-3 pr-3">{formatearMinutos(r.total_bible_minutes)}</td>
+                          <td className="py-3 pr-3">{formatearMinutos(r.total_prayer_minutes)}</td>
                           <td className="py-3 pr-3">{r.total_reports}</td>
                         </tr>
                       ))}

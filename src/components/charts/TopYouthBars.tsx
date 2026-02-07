@@ -6,8 +6,6 @@ type Item = {
   name: string;
   fullName?: string;
   value: number; // minutos o cantidad
-  // unit: minutes (default), chapters, reports
-  unit?: "minutes" | "chapters" | "reports";
   isCount?: boolean;
 };
 
@@ -37,8 +35,7 @@ function fmtValue(v: number, isCount?: boolean) {
 }
 
 export default function TopYouthBars({ data }: { data: Item[] }) {
-  const unit = (data?.[0] as any)?.unit as any;
-  const isCount = unit === "chapters" || unit === "reports" || !!data?.[0]?.isCount;
+  const isCount = !!data?.[0]?.isCount;
   const max = niceMax(Math.max(...data.map((d) => Number(d.value || 0))));
 
   return (
@@ -63,7 +60,7 @@ export default function TopYouthBars({ data }: { data: Item[] }) {
           />
           <YAxis
             domain={[0, max || 0]}
-            tickFormatter={(v) => (unit === "minutes" || !unit ? fmtDurationTick(Number(v), false) : `${Math.round(Math.max(0, Number(v || 0)))}`)}
+            tickFormatter={(v) => fmtDurationTick(Number(v), isCount)}
             tick={{ fontSize: 12, fill: "rgba(255,255,255,0.65)" }}
             tickLine={false}
             axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
@@ -82,15 +79,10 @@ export default function TopYouthBars({ data }: { data: Item[] }) {
               const item = payload?.[0]?.payload as Item | undefined;
               return item?.fullName || item?.name || "";
             }}
-            formatter={(value: any) => {
-              const n = Math.max(0, Math.floor(Number(value ?? 0)));
-              if (unit === "chapters") return [`${n} cap`, "Capítulos"];
-              if (unit === "reports") return [`${n} reportes`, "Reportes"];
-              return [fmtValue(n, false), "Minutos"];
-            }}
+            formatter={(value: any) => [fmtValue(Number(value), isCount), isCount ? "Reportes" : "Minutos"]}
           />
 
-          <Bar dataKey="value" fill="url(#tyb_value)" radius={[12, 12, 6, 6]} maxBarSize={48} />
+          <Bar dataKey="value" fill="url(#tyb_value)" radius={[12, 12, 6, 6]} maxBarSize={48}  isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
         </BarChart>
       </ResponsiveContainer>
     </div>

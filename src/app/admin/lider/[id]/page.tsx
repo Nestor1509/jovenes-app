@@ -6,7 +6,9 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { useMyProfile } from "@/lib/useMyProfile";
 import LoadingCard from "@/components/LoadingCard";
-import TrendLine from "@/components/charts/TrendLine";
+import dynamic from "next/dynamic";
+const TrendLine = dynamic(() => import("@/components/charts/TrendLine"), { ssr: false });
+
 import { Container, Card, Title, Subtitle, PageFade, Stat, Button, Input } from "@/components/ui";
 import { ArrowLeft, CalendarDays } from "lucide-react";
 
@@ -16,12 +18,7 @@ function iso(d: Date) {
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
-function formatearCapitulos(n: number) {
-  const v = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
-  return `${v} cap`;
-}
-
-function formatearOracion(min: number) {
+function formatearMinutos(min: number) {
   const t = Math.max(0, Math.floor(Number(min || 0)));
   const h = Math.floor(t / 60);
   const m = t % 60;
@@ -38,7 +35,7 @@ function inicioSemana(dateISO: string) {
 }
 
 type ProfileRow = { id: string; name: string; role: string; group_id: string | null };
-type ReportRow = { report_date: string; chapters_count: number; prayer_minutes: number };
+type ReportRow = { report_date: string; bible_minutes: number; prayer_minutes: number };
 
 export default function AdminLeaderDetailPage() {
   const params = useParams<{ id: string }>();
@@ -94,7 +91,7 @@ export default function AdminLeaderDetailPage() {
 
     const { data: rep, error: repErr } = await supabase
       .from("reports")
-      .select("report_date,chapters_count,prayer_minutes")
+      .select("report_date,bible_minutes,prayer_minutes")
       .eq("user_id", id)
       .gte("report_date", fromDate)
       .lte("report_date", toDate)
@@ -118,24 +115,24 @@ export default function AdminLeaderDetailPage() {
   const totals = useMemo(() => {
     const t = { bible: 0, prayer: 0, reports: reports.length };
     for (const r of reports) {
-      t.bible += Number(r.chapters_count ?? 0);
+      t.bible += Number(r.bible_minutes ?? 0);
       t.prayer += Number(r.prayer_minutes ?? 0);
     }
     return t;
   }, [reports]);
 
   const trend = useMemo(() => {
-    const map = new Map<string, { bible: number; prayer: number }>();
+    const map = new Map<string, { lectura: number; oracion: number }>();
     for (const r of reports) {
       const k = inicioSemana(r.report_date);
-      const cur = map.get(k) ?? { bible: 0, prayer: 0 };
-      cur.bible += Number(r.chapters_count ?? 0);
-      cur.prayer += Number(r.prayer_minutes ?? 0);
+      const cur = map.get(k) ?? { lectura: 0, oracion: 0 };
+      cur.lectura += Number(r.bible_minutes ?? 0);
+      cur.oracion += Number(r.prayer_minutes ?? 0);
       map.set(k, cur);
     }
     return [...map.entries()]
       .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([k, v]) => ({ label: k, bible: v.bible, prayer: v.prayer }));
+      .map(([k, v]) => ({ label: k, lectura: v.lectura, oracion: v.oracion }));
   }, [reports]);
 
   if (authLoading) return <LoadingCard text="Cargando sesión…" />;
@@ -189,8 +186,8 @@ export default function AdminLeaderDetailPage() {
               <div className="text-sm font-semibold">Resumen del rango</div>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <Stat label="Capítulos" value={formatearOracion(totals.bible)} />
-              <Stat label="Oración" value={formatearOracion(totals.prayer)} />
+              <Stat label="Lectura" value={formatearMinutos(totals.bible)} />
+              <Stat label="Oración" value={formatearMinutos(totals.prayer)} />
               <Stat label="Reportes" value={totals.reports} />
             </div>
           </Card>

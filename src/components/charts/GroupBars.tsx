@@ -88,14 +88,14 @@ export default function GroupBars({ data }: { data: Item[] }) {
             fill="url(#gb_read)"
             radius={[12, 12, 6, 6]}
             maxBarSize={52}
-          />
+           isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
           <Bar
             dataKey="oracion_min"
             name="Oración"
             fill="url(#gb_pray)"
             radius={[12, 12, 6, 6]}
             maxBarSize={52}
-          />
+           isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
         </BarChart>
       </ResponsiveContainer>
     </div>

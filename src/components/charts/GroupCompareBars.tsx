@@ -83,8 +83,8 @@ export default function GroupCompareBars({ data }: { data: Item[] }) {
             height={28}
             formatter={(value) => <span style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>{value}</span>}
           />
-          <Bar dataKey="lectura" name="Lectura" fill="url(#gcb_read)" radius={[12, 12, 6, 6]} maxBarSize={46} />
-          <Bar dataKey="oracion" name="Oración" fill="url(#gcb_pray)" radius={[12, 12, 6, 6]} maxBarSize={46} />
+          <Bar dataKey="lectura" name="Lectura" fill="url(#gcb_read)" radius={[12, 12, 6, 6]} maxBarSize={46}  isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
+          <Bar dataKey="oracion" name="Oración" fill="url(#gcb_pray)" radius={[12, 12, 6, 6]} maxBarSize={46}  isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
         </BarChart>
       </ResponsiveContainer>
     </div>

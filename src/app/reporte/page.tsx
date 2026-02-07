@@ -75,20 +75,23 @@ export default function ReportePage() {
       setMode("loading");
       setMsg("");
 
-      const { data: sess } = await supabase.auth.getSession();
-      if (!sess.session) {
-        window.location.href = "/";
-        return;
-      }
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        if (!sess.session) {
+          // Si no hay sesión, no dejar la página en bucle "Cargando...".
+          setMode("new");
+          setMsg("Inicia sesión para reportar.");
+          return;
+        }
 
-      const { data, error } = await supabase
-        .from("reports")
-        .select("chapters_count, prayer_minutes")
-        .eq("user_id", sess.session.user.id)
-        .eq("report_date", dateKey)
-        .maybeSingle();
+        const { data, error } = await supabase
+          .from("reports")
+          .select("chapters_count, prayer_minutes")
+          .eq("user_id", sess.session.user.id)
+          .eq("report_date", dateKey)
+          .maybeSingle();
 
-      if (!error && data) {
+        if (!error && data) {
         setExisting({
           chapters_count: Number((data as any).chapters_count ?? 0),
           prayer_minutes: Number((data as any).prayer_minutes ?? 0),
@@ -106,7 +109,7 @@ export default function ReportePage() {
         setChapters("");
         setPrayerH("");
         setPrayerM("");
-      } else {
+        } else {
         setExisting(null);
         setMode("new");
         try {
@@ -116,6 +119,11 @@ export default function ReportePage() {
         setChapters("");
         setPrayerH("");
         setPrayerM("");
+        }
+      } catch (e: any) {
+        setExisting(null);
+        setMode("new");
+        setMsg(traducirError(e?.message || ""));
       }
     })();
   }, [dateKey]);
@@ -247,6 +255,17 @@ export default function ReportePage() {
         <Card className="p-5">
           {mode === "loading" ? (
             <div className="text-white/60">Cargando...</div>
+          ) : msg === "Inicia sesión para reportar." ? (
+            <div className="grid gap-3">
+              <div className="text-white/70">{msg}</div>
+              <Button variant="ghost" onClick={() => (window.location.href = "/")}
+                className="w-fit">
+                Ir a Inicio
+              </Button>
+              <div className="text-xs text-white/50">
+                También puedes usar el botón <b>Entrar</b> del menú superior.
+              </div>
+            </div>
           ) : mode === "askEdit" ? (
             <Summary allowEdit={true} />
           ) : mode === "doneLocked" ? (

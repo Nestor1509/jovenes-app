@@ -331,9 +331,6 @@ export default function LiderPage() {
               <Button onClick={() => exportar("xlsx")} className="inline-flex items-center gap-2">
                 <FileDown size={16} /> Excel
               </Button>
-              <Button onClick={() => exportar("pdf")} variant="ghost" className="inline-flex items-center gap-2">
-                <FileDown size={16} /> PDF
-              </Button>
               <Button onClick={cargarBase} variant="ghost" className="inline-flex items-center gap-2">
                 <RefreshCw size={16} /> Actualizar
               </Button>

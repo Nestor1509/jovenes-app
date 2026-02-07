@@ -219,9 +219,6 @@ export default function AdminGeneralPage() {
               <Button onClick={() => descargar("xlsx")} className="inline-flex items-center gap-2">
                 <FileDown size={16} /> Excel
               </Button>
-              <Button onClick={() => descargar("pdf")} variant="ghost" className="inline-flex items-center gap-2">
-                <FileDown size={16} /> PDF
-              </Button>
             </div>
             <div className="grid gap-1">
               <div className="text-xs text-white/60">Desde</div>

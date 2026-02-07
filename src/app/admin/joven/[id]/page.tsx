@@ -10,7 +10,7 @@ import dynamic from "next/dynamic";
 const TrendLine = dynamic(() => import("@/components/charts/TrendLine"), { ssr: false });
 
 import { Container, Card, Title, Subtitle, PageFade, Stat, Button, Input } from "@/components/ui";
-import { ArrowLeft, CalendarDays, NotebookPen } from "lucide-react";
+import { ArrowLeft, CalendarDays, NotebookPen, X } from "lucide-react";
 
 function iso(d: Date) {
   const yyyy = d.getFullYear();
@@ -37,7 +37,14 @@ function inicioSemana(dateISO: string) {
 }
 
 type ProfileRow = { id: string; name: string; role: string; group_id: string | null };
-type ReportRow = { report_date: string; bible_minutes: number; prayer_minutes: number };
+type ReportRow = {
+  report_date: string;
+  bible_minutes: number;
+  prayer_minutes: number;
+  chapters_count?: number | null;
+  bible_chapters?: string | null;
+  prayer_topic?: string | null;
+};
 type NoteRow = { id: number; note: string; created_at: string; author_id: string };
 
 export default function PersonDetailPage() {
@@ -63,6 +70,7 @@ export default function PersonDetailPage() {
   const [toDate, setToDate] = useState(today);
 
   const [reports, setReports] = useState<ReportRow[]>([]);
+  const [selected, setSelected] = useState<ReportRow | null>(null);
   const [notes, setNotes] = useState<NoteRow[]>([]);
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
@@ -117,7 +125,7 @@ export default function PersonDetailPage() {
     // Reportes en rango
     const { data: rep, error: repErr } = await supabase
       .from("reports")
-      .select("report_date,bible_minutes,prayer_minutes")
+      .select("report_date,bible_minutes,prayer_minutes,chapters_count,bible_chapters,prayer_topic")
       .eq("user_id", id)
       .gte("report_date", fromDate)
       .lte("report_date", toDate)
@@ -128,6 +136,7 @@ export default function PersonDetailPage() {
       setReports([]);
     } else {
       setReports((rep ?? []) as any);
+      setSelected(null);
     }
 
     // Notas (si existe tabla)
@@ -175,10 +184,8 @@ export default function PersonDetailPage() {
   }, [reports]);
 
   const historyMap = useMemo(() => {
-    const m: Record<string, { bible: number; prayer: number }> = {};
-    for (const r of reports) {
-      m[r.report_date] = { bible: Number(r.bible_minutes ?? 0), prayer: Number(r.prayer_minutes ?? 0) };
-    }
+    const m: Record<string, ReportRow> = {};
+    for (const r of reports) m[r.report_date] = r;
     return m;
   }, [reports]);
 
@@ -294,16 +301,20 @@ export default function PersonDetailPage() {
 
             <div className="mt-3 grid grid-cols-7 gap-2">
               {calendarDays.map((d) => {
-                const has = Boolean(historyMap[d]);
-                const bible = historyMap[d]?.bible ?? 0;
-                const prayer = historyMap[d]?.prayer ?? 0;
+                const rep = historyMap[d];
+                const has = Boolean(rep);
+                const bible = rep?.bible_minutes ?? 0;
+                const prayer = rep?.prayer_minutes ?? 0;
                 return (
                   <div
                     key={d}
                     title={has ? `${d} • Lectura: ${bible}m • Oración: ${prayer}m` : d}
+                    onClick={() => {
+                      if (rep) setSelected(rep);
+                    }}
                     className={[
                       "rounded-xl border px-2 py-2 text-[11px] leading-tight",
-                      has ? "border-white/20 bg-white/10" : "border-white/10 bg-black/20 text-white/50",
+                      has ? "border-white/20 bg-white/10 cursor-pointer" : "border-white/10 bg-black/20 text-white/50",
                     ].join(" ")}
                   >
                     <div className="font-medium">{d.slice(8, 10)}</div>
@@ -312,6 +323,40 @@ export default function PersonDetailPage() {
                 );
               })}
             </div>
+
+            {selected && (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold">Reporte del {selected.report_date}</div>
+                    <div className="text-xs text-white/60 mt-1">Detalles del reporte (caps/temas si aplica).</div>
+                  </div>
+                  <Button variant="ghost" className="!px-2" onClick={() => setSelected(null)}>
+                    <X size={16} />
+                  </Button>
+                </div>
+
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <Stat label="Lectura" value={formatearMinutos(Number(selected.bible_minutes ?? 0))} />
+                  <Stat label="Oración" value={formatearMinutos(Number(selected.prayer_minutes ?? 0))} />
+                  <Stat
+                    label="Caps"
+                    value={
+                      selected.chapters_count === null || selected.chapters_count === undefined
+                        ? "—"
+                        : String(selected.chapters_count)
+                    }
+                  />
+                </div>
+
+                <div className="mt-3 grid gap-2">
+                  <div className="text-xs text-white/60">Lectura (capítulos):</div>
+                  <div className="text-sm whitespace-pre-wrap">{selected.bible_chapters?.trim() ? selected.bible_chapters : "—"}</div>
+                  <div className="text-xs text-white/60 mt-2">Tema de oración:</div>
+                  <div className="text-sm whitespace-pre-wrap">{selected.prayer_topic?.trim() ? selected.prayer_topic : "—"}</div>
+                </div>
+              </div>
+            )}
           </Card>
 
           <Card>

@@ -3,9 +3,8 @@
 import { useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { buildCSV, type ExportRow } from "@/lib/exporters";
-import { buildReportsPDF } from "@/lib/pdfReport";
 import { Button } from "@/components/ui";
-import { Download, FileText } from "lucide-react";
+import { Download } from "lucide-react";
 
 type Props = {
   week?: number | null;
@@ -70,48 +69,10 @@ export default function ExportReportsButtons({ week = null, month = null, group_
     }
   }
 
-  async function exportPDF() {
-    try {
-      setMsg("");
-      setLoading(true);
-      const rows = await fetchRows({ week, month, group_id });
-      if (!rows.length) {
-        setMsg("No hay datos para exportar.");
-        return;
-      }
-
-      const bytes = await buildReportsPDF({
-        title: "Reporte de jóvenes",
-        subtitle:
-          week !== null && week !== undefined
-            ? `Semana ${week}`
-            : month
-              ? `Mes ${month}`
-              : "",
-        rows,
-      });
-
-      const blob = new Blob([bytes], { type: "application/pdf" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${base}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch (e: any) {
-      setMsg(e?.message || "Error exportando");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <Button onClick={exportCSV} disabled={loading} className="gap-2">
         <Download size={16} /> {label} Excel
-      </Button>
-      <Button onClick={exportPDF} disabled={loading} variant="ghost" className="gap-2">
-        <FileText size={16} /> {label} PDF
       </Button>
       {msg ? <div className="text-xs text-white/60">{msg}</div> : null}
     </div>

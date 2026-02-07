@@ -16,7 +16,12 @@ function iso(d: Date) {
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
-function formatearMinutos(min: number) {
+function formatearCapitulos(n: number) {
+  const v = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  return `${v} cap`;
+}
+
+function formatearOracion(min: number) {
   const t = Math.max(0, Math.floor(Number(min || 0)));
   const h = Math.floor(t / 60);
   const m = t % 60;
@@ -111,26 +116,26 @@ export default function AdminLeaderDetailPage() {
   }, [authLoading, session?.user?.id, id, fromDate, toDate]);
 
   const totals = useMemo(() => {
-    const t = { chapters: 0, prayer: 0, reports: reports.length };
+    const t = { bible: 0, prayer: 0, reports: reports.length };
     for (const r of reports) {
-      t.chapters += Number(r.chapters_count ?? 0);
+      t.bible += Number(r.chapters_count ?? 0);
       t.prayer += Number(r.prayer_minutes ?? 0);
     }
     return t;
   }, [reports]);
 
   const trend = useMemo(() => {
-    const map = new Map<string, { chapters: number; prayer: number }>();
+    const map = new Map<string, { bible: number; prayer: number }>();
     for (const r of reports) {
       const k = inicioSemana(r.report_date);
-      const cur = map.get(k) ?? { chapters: 0, prayer: 0 };
-      cur.chapters += Number(r.chapters_count ?? 0);
+      const cur = map.get(k) ?? { bible: 0, prayer: 0 };
+      cur.bible += Number(r.chapters_count ?? 0);
       cur.prayer += Number(r.prayer_minutes ?? 0);
       map.set(k, cur);
     }
     return [...map.entries()]
       .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([k, v]) => ({ label: k, chapters: v.chapters, prayer: v.prayer }));
+      .map(([k, v]) => ({ label: k, bible: v.bible, prayer: v.prayer }));
   }, [reports]);
 
   if (authLoading) return <LoadingCard text="Cargando sesión…" />;
@@ -184,8 +189,8 @@ export default function AdminLeaderDetailPage() {
               <div className="text-sm font-semibold">Resumen del rango</div>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <Stat label="Capítulos" value={totals.chapters} />
-              <Stat label="Oración" value={formatearMinutos(totals.prayer)} />
+              <Stat label="Capítulos" value={formatearOracion(totals.bible)} />
+              <Stat label="Oración" value={formatearOracion(totals.prayer)} />
               <Stat label="Reportes" value={totals.reports} />
             </div>
           </Card>

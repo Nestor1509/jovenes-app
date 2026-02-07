@@ -5,7 +5,12 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { Container, Card, Title, Subtitle, PageFade, Stat, Button } from "@/components/ui";
 
-function fmtMinutes(min: number) {
+function formatearCapitulos(n: number) {
+  const v = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  return `${v} cap`;
+}
+
+function formatearOracion(min: number) {
   const t = Number.isFinite(min) ? Math.max(0, Math.floor(min)) : 0;
   const h = Math.floor(t / 60);
   const m = t % 60;
@@ -38,7 +43,7 @@ function inicioMesISO(dateISO: string) {
 }
 
 type Totales = {
-  total_bible_chapters: number;
+  total_bible_minutes: number;
   total_prayer_minutes: number;
   total_reports: number;
 };
@@ -50,9 +55,9 @@ export default function MisEstadisticasPage() {
   const [nombre, setNombre] = useState<string>("");
   const [rol, setRol] = useState<string>("");
 
-  const [week, setWeek] = useState<Totales>({ total_bible_chapters: 0, total_prayer_minutes: 0, total_reports: 0 });
-  const [month, setMonth] = useState<Totales>({ total_bible_chapters: 0, total_prayer_minutes: 0, total_reports: 0 });
-  const [all, setAll] = useState<Totales>({ total_bible_chapters: 0, total_prayer_minutes: 0, total_reports: 0 });
+  const [week, setWeek] = useState<Totales>({ total_bible_minutes: 0, total_prayer_minutes: 0, total_reports: 0 });
+  const [month, setMonth] = useState<Totales>({ total_bible_minutes: 0, total_prayer_minutes: 0, total_reports: 0 });
+  const [all, setAll] = useState<Totales>({ total_bible_minutes: 0, total_prayer_minutes: 0, total_reports: 0 });
 
   const today = useMemo(() => hoyISO(), []);
   const weekStart = useMemo(() => inicioSemanaISO(today), [today]);
@@ -71,7 +76,11 @@ export default function MisEstadisticasPage() {
 
       const userId = sess.session.user.id;
 
-      const { data: p, error: pErr } = await supabase.from("profiles").select("name, role").eq("id", userId).single();
+      const { data: p, error: pErr } = await supabase
+        .from("profiles")
+        .select("name, role")
+        .eq("id", userId)
+        .single();
 
       if (pErr || !p) {
         setMsg("No se pudo cargar tu perfil.");
@@ -83,15 +92,13 @@ export default function MisEstadisticasPage() {
       setRol(p.role);
 
       const sumar = (rows: any[]): Totales => {
-        let caps = 0,
-          prayer = 0,
-          c = 0;
+        let b = 0, o = 0, c = 0;
         for (const r of rows) {
-          caps += Number(r.chapters_count ?? 0);
-          prayer += Number(r.prayer_minutes ?? 0);
+          b += Number(r.chapters_count ?? 0);
+          o += Number(r.prayer_minutes ?? 0);
           c += 1;
         }
-        return { total_bible_chapters: caps, total_prayer_minutes: prayer, total_reports: c };
+        return { total_bible_minutes: b, total_prayer_minutes: o, total_reports: c };
       };
 
       const { data: wRows } = await supabase
@@ -112,7 +119,10 @@ export default function MisEstadisticasPage() {
 
       setMonth(sumar(mRows ?? []));
 
-      const { data: aRows } = await supabase.from("reports").select("chapters_count, prayer_minutes").eq("user_id", userId);
+      const { data: aRows } = await supabase
+        .from("reports")
+        .select("chapters_count, prayer_minutes")
+        .eq("user_id", userId);
 
       setAll(sumar(aRows ?? []));
 
@@ -128,7 +138,9 @@ export default function MisEstadisticasPage() {
         <div className="grid gap-6">
           <div>
             <Title>Mis estadísticas</Title>
-            <Subtitle>{nombre ? `${nombre} — ${rolBonito}` : "Cargando…"}</Subtitle>
+            <Subtitle>
+              {nombre ? `${nombre} — ${rolBonito}` : "Cargando…"}
+            </Subtitle>
           </div>
 
           {msg && <div className="text-red-300 text-sm">{msg}</div>}
@@ -138,8 +150,8 @@ export default function MisEstadisticasPage() {
               <div className="text-sm font-medium mb-1">Semana</div>
               <div className="text-xs text-white/60 mb-4">Desde {weekStart}</div>
               <div className="grid gap-2">
-                <Stat label="Capítulos" value={week.total_bible_chapters} />
-                <Stat label="Oración" value={fmtMinutes(week.total_prayer_minutes)} />
+                <Stat label="Capítulos" value={formatearCapitulos(week.total_bible_minutes)} />
+                <Stat label="Oración" value={formatearOracion(week.total_prayer_minutes)} />
                 <Stat label="Reportes" value={week.total_reports} />
               </div>
             </Card>
@@ -148,8 +160,8 @@ export default function MisEstadisticasPage() {
               <div className="text-sm font-medium mb-1">Mes</div>
               <div className="text-xs text-white/60 mb-4">Desde {monthStart}</div>
               <div className="grid gap-2">
-                <Stat label="Capítulos" value={month.total_bible_chapters} />
-                <Stat label="Oración" value={fmtMinutes(month.total_prayer_minutes)} />
+                <Stat label="Capítulos" value={formatearCapitulos(month.total_bible_minutes)} />
+                <Stat label="Oración" value={formatearOracion(month.total_prayer_minutes)} />
                 <Stat label="Reportes" value={month.total_reports} />
               </div>
             </Card>
@@ -158,13 +170,12 @@ export default function MisEstadisticasPage() {
               <div className="text-sm font-medium mb-1">Histórico</div>
               <div className="text-xs text-white/60 mb-4">Todo el tiempo</div>
               <div className="grid gap-2">
-                <Stat label="Capítulos" value={all.total_bible_chapters} />
-                <Stat label="Oración" value={fmtMinutes(all.total_prayer_minutes)} />
+                <Stat label="Capítulos" value={formatearCapitulos(all.total_bible_minutes)} />
+                <Stat label="Oración" value={formatearOracion(all.total_prayer_minutes)} />
                 <Stat label="Reportes" value={all.total_reports} />
               </div>
             </Card>
-          </div>
-
+          
           {rol === "admin" && (
             <Card className="border-aguila-500/20 bg-aguila-500/10">
               <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -180,6 +191,7 @@ export default function MisEstadisticasPage() {
               </div>
             </Card>
           )}
+</div>
 
           {loading && <div className="text-sm text-white/70">Cargando…</div>}
         </div>

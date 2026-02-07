@@ -17,7 +17,12 @@ function iso(d: Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function formatearMinutos(min: number) {
+function formatearCapitulos(n: number) {
+  const v = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  return `${v} cap`;
+}
+
+function formatearOracion(min: number) {
   const t = Math.max(0, Math.floor(Number(min || 0)));
   const h = Math.floor(t / 60);
   const m = t % 60;
@@ -149,9 +154,9 @@ export default function PersonDetailPage() {
   }, [authLoading, session?.user?.id, id, fromDate, toDate]);
 
   const totals = useMemo(() => {
-    const t = { chapters: 0, prayer: 0, reports: reports.length };
+    const t = { bible: 0, prayer: 0, reports: reports.length };
     for (const r of reports) {
-      t.chapters += Number(r.chapters_count ?? 0);
+      t.bible += Number(r.chapters_count ?? 0);
       t.prayer += Number(r.prayer_minutes ?? 0);
     }
     return t;
@@ -159,17 +164,17 @@ export default function PersonDetailPage() {
 
   const trend = useMemo(() => {
     // Agrupar por inicio de semana
-    const map = new Map<string, { chapters: number; prayer: number }>();
+    const map = new Map<string, { lectura: number; oracion: number }>();
     for (const r of reports) {
       const k = inicioSemana(r.report_date);
-      const cur = map.get(k) ?? { chapters: 0, prayer: 0 };
-      cur.chapters += Number(r.chapters_count ?? 0);
-      cur.prayer += Number(r.prayer_minutes ?? 0);
+      const cur = map.get(k) ?? { lectura: 0, oracion: 0 };
+      cur.lectura += Number(r.chapters_count ?? 0);
+      cur.oracion += Number(r.prayer_minutes ?? 0);
       map.set(k, cur);
     }
     return [...map.entries()]
       .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([k, v]) => ({ label: k, chapters: v.chapters, prayer: v.prayer }));
+      .map(([k, v]) => ({ label: k, lectura: v.lectura, oracion: v.oracion }));
   }, [reports]);
 
   const historyMap = useMemo(() => {
@@ -266,8 +271,8 @@ export default function PersonDetailPage() {
               <div className="text-sm font-semibold">Resumen del rango</div>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <Stat label="Capítulos" value={totals.chapters} />
-              <Stat label="Oración" value={formatearMinutos(totals.prayer)} />
+              <Stat label="Capítulos" value={formatearCapitulos(totals.bible)} />
+              <Stat label="Oración" value={formatearOracion(totals.prayer)} />
               <Stat label="Reportes" value={totals.reports} />
             </div>
           </Card>
@@ -298,14 +303,14 @@ export default function PersonDetailPage() {
                 return (
                   <div
                     key={d}
-                    title={has ? `${d} • Capítulos: ${bible} • Oración: ${prayer} min` : d}
+                    title={has ? `${d} • Capítulos: ${bible}m • Oración: ${prayer}m` : d}
                     className={[
                       "rounded-xl border px-2 py-2 text-[11px] leading-tight",
                       has ? "border-white/20 bg-white/10" : "border-white/10 bg-black/20 text-white/50",
                     ].join(" ")}
                   >
                     <div className="font-medium">{d.slice(8, 10)}</div>
-                    {has ? <div className="text-white/70">{bible} cap • {prayer}m</div> : <div className="opacity-50">—</div>}
+                    {has ? <div className="text-white/70">{`${bible}c / ${prayer}m`}</div> : <div className="opacity-50">—</div>}
                   </div>
                 );
               })}

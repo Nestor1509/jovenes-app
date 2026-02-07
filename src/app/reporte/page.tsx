@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Container, Card, Title, Subtitle, Button, Input, PageFade } from "@/components/ui";
-import { BookOpen, CheckCircle2, Clock3, HeartHandshake, PencilLine } from "lucide-react";
+import { BookOpen, HeartHandshake, PencilLine, CheckCircle2 } from "lucide-react";
 
 function todayISO() {
   const d = new Date();
@@ -32,11 +32,8 @@ function fromMinutes(total: number) {
 function traducirError(msg: string) {
   const m = (msg ?? "").toLowerCase();
   if (m.includes("jwt")) return "Tu sesión expiró. Vuelve a iniciar sesión.";
-  if (m.includes("permission denied") || m.includes("not allowed"))
-    return "No tienes permisos para realizar esta acción.";
+  if (m.includes("permission denied") || m.includes("not allowed")) return "No tienes permisos para realizar esta acción.";
   if (m.includes("duplicate key") || m.includes("unique")) return "Ya existe un reporte para esa fecha.";
-  if (m.includes("stack depth"))
-    return "Error de seguridad/roles. Recarga la página (si continúa, avísame).";
   return "Ocurrió un error. Intenta de nuevo.";
 }
 
@@ -64,9 +61,12 @@ export default function ReportePage() {
   const [mode, setMode] = useState<Mode>("loading");
   const [existing, setExisting] = useState<ExistingReport | null>(null);
 
-  const [chapters, setChapters] = useState<string>("" );
-  const [prayerH, setPrayerH] = useState<string>("" );
-  const [prayerM, setPrayerM] = useState<string>("" );
+  // ✅ Nuevo: capítulos (sin tiempo de lectura)
+  const [chapters, setChapters] = useState<string>("0");
+
+  // Oración (igual que antes)
+  const [prayerH, setPrayerH] = useState<string>("0");
+  const [prayerM, setPrayerM] = useState<string>("0");
 
   const [msg, setMsg] = useState("");
 
@@ -90,8 +90,8 @@ export default function ReportePage() {
 
       if (!error && data) {
         setExisting({
-          chapters_count: data.chapters_count ?? 0,
-          prayer_minutes: data.prayer_minutes ?? 0,
+          chapters_count: Number((data as any).chapters_count ?? 0),
+          prayer_minutes: Number((data as any).prayer_minutes ?? 0),
         });
 
         const locked = (() => {
@@ -103,10 +103,9 @@ export default function ReportePage() {
         })();
 
         setMode(locked ? "doneLocked" : "askEdit");
-
-        setChapters("");
-        setPrayerH("");
-        setPrayerM("");
+        setChapters("0");
+        setPrayerH("0");
+        setPrayerM("0");
       } else {
         setExisting(null);
         setMode("new");
@@ -114,10 +113,9 @@ export default function ReportePage() {
           localStorage.removeItem(lockKey(dateKey));
         } catch {}
         notifyLockChanged();
-
-        setChapters("");
-        setPrayerH("");
-        setPrayerM("");
+        setChapters("0");
+        setPrayerH("0");
+        setPrayerM("0");
       }
     })();
   }, [dateKey]);
@@ -138,16 +136,18 @@ export default function ReportePage() {
     const user = sess.session?.user;
     if (!user) return;
 
-    const chapters_count = clampInt(Number(onlyDigits(chapters || "0")), 0, 500);
+    const chapters_count = clampInt(Number(chapters || 0), 0, 999);
     const prayer_minutes = toMinutes(prayerH, prayerM);
 
+    // Compatibilidad: existe bible_minutes en la tabla antigua → lo dejamos en 0
     const { error } = await supabase.from("reports").upsert(
       {
         user_id: user.id,
         report_date: today,
         chapters_count,
+        bible_minutes: 0,
         prayer_minutes,
-      },
+      } as any,
       { onConflict: "user_id,report_date" }
     );
 
@@ -167,7 +167,6 @@ export default function ReportePage() {
 
   const Summary = ({ allowEdit }: { allowEdit: boolean }) => {
     const p = fromMinutes(existing?.prayer_minutes ?? 0);
-    const caps = Math.max(0, Math.floor(Number(existing?.chapters_count ?? 0)));
 
     return (
       <div className="grid gap-3">
@@ -181,12 +180,12 @@ export default function ReportePage() {
             <span className="flex items-center gap-2">
               <BookOpen size={16} className="opacity-80" /> Capítulos leídos
             </span>
-            <span className="font-semibold text-white">{caps}</span>
+            <span className="font-semibold text-white">{existing?.chapters_count ?? 0}</span>
           </div>
 
           <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3">
             <span className="flex items-center gap-2">
-              <Clock3 size={16} className="opacity-80" /> Oración
+              <HeartHandshake size={16} className="opacity-80" /> Oración
             </span>
             <span className="font-semibold text-white">
               {p.h}h {p.m}m
@@ -194,182 +193,125 @@ export default function ReportePage() {
           </div>
         </div>
 
-        {allowEdit && (
-          <Button
-            variant="subtle"
-            onClick={() => {
-              loadExistingIntoForm();
-              setMode("editing");
-            }}
-            className="mt-1"
-          >
-            <PencilLine size={16} /> Editar reporte
-          </Button>
+        {allowEdit ? (
+          <>
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem(lockKey(dateKey));
+                  } catch {}
+                  notifyLockChanged();
+                  loadExistingIntoForm();
+                  setMode("editing");
+                }}
+              >
+                <PencilLine size={16} className="mr-2" /> Editar reporte
+              </Button>
+
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  try {
+                    localStorage.setItem(lockKey(dateKey), "1");
+                  } catch {}
+                  notifyLockChanged();
+                  setMode("doneLocked");
+                }}
+              >
+                No, hoy no
+              </Button>
+            </div>
+
+            <div className="text-xs text-white/50">
+              Si eliges “No, hoy no”, no volverá a preguntarte hoy (puedes volver mañana).
+            </div>
+          </>
+        ) : (
+          <div className="text-xs text-white/50">Tu reporte de hoy está bloqueado para edición.</div>
         )}
       </div>
     );
   };
 
-  function lockNoEdit() {
-    try {
-      localStorage.setItem(lockKey(dateKey), "1");
-    } catch {}
-    notifyLockChanged();
-    setMode("doneLocked");
-  }
-
   return (
-    <Container>
-      <PageFade>
-        <div className="grid gap-6">
-          <div>
-            <Title>Reporte diario</Title>
-            <Subtitle>Reporta hoy tus capítulos leídos y tu tiempo de oración.</Subtitle>
-          </div>
+    <PageFade>
+      <Container>
+        <div className="mb-6">
+          <Title>Reporte diario</Title>
+          <Subtitle>Reporta hoy tus capítulos leídos y tu tiempo de oración.</Subtitle>
+        </div>
 
-          {msg && <div className={msg.startsWith("✅") ? "text-emerald-200 text-sm" : "text-red-300 text-sm"}>{msg}</div>}
-
+        <Card className="p-5">
           {mode === "loading" ? (
-            <Card>
-              <div className="text-sm text-white/70">Cargando…</div>
-            </Card>
+            <div className="text-white/60">Cargando...</div>
           ) : mode === "askEdit" ? (
-            <Card>
-              <Summary allowEdit={false} />
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    loadExistingIntoForm();
-                    setMode("editing");
-                  }}
-                >
-                  Sí, editar
-                </Button>
-                <Button variant="ghost" onClick={lockNoEdit}>
-                  No, dejar así
-                </Button>
-              </div>
-            </Card>
+            <Summary allowEdit={true} />
           ) : mode === "doneLocked" ? (
-            <Card>
-              <Summary allowEdit={false} />
-              <div className="mt-3 text-xs text-white/60">Hoy elegiste no editar este reporte.</div>
-            </Card>
-          ) : mode === "done" ? (
-            <Card>
-              <Summary allowEdit={true} />
-            </Card>
+            <Summary allowEdit={false} />
           ) : (
-            <Card>
-              <div className="grid gap-5">
-                <div className="flex items-center gap-2 text-sm text-white/70">
-                  <Clock3 size={16} />
-                  <span>Fecha</span>
+            <div className="grid gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {/* Capítulos */}
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="mb-2 flex items-center gap-2 text-white/80">
+                    <BookOpen size={18} className="opacity-80" />
+                    <div className="font-semibold">Lectura bíblica</div>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <div className="text-sm text-white/60">Capítulos leídos</div>
+                    <Input
+                      value={chapters}
+                      inputMode="numeric"
+                      onChange={(e) => setChapters(onlyDigits(e.target.value))}
+                      placeholder="0"
+                    />
+                    <div className="text-xs text-white/45">Nota: la lectura se registra por cantidad de capítulos.</div>
+                  </div>
                 </div>
 
-                <Input type="date" value={today} disabled className="max-w-xs opacity-70 cursor-not-allowed" />
+                {/* Oración */}
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="mb-2 flex items-center gap-2 text-white/80">
+                    <HeartHandshake size={18} className="opacity-80" />
+                    <div className="font-semibold">Tiempo de oración</div>
+                  </div>
 
-                <div className="text-xs text-white/50">Solo puedes reportar el día de hoy. (La base de datos también lo valida.)</div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <div className="flex items-center gap-2 font-medium">
-                      <BookOpen size={18} className="opacity-80" />
-                      Lectura bíblica
-                    </div>
-
-                    <div className="mt-3">
-                      <div className="text-xs text-white/60 mb-1">Capítulos leídos</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-sm text-white/60">Horas</div>
                       <Input
+                        value={prayerH}
                         inputMode="numeric"
+                        onChange={(e) => setPrayerH(onlyDigits(e.target.value))}
                         placeholder="0"
-                        value={chapters}
-                        onFocus={(e) => {
-                          if (chapters === "0") setChapters("");
-                          try { (e.target as HTMLInputElement).select(); } catch {}
-                        }}
-                        onChange={(e) => setChapters(onlyDigits(e.target.value))}
-                        onBlur={() => {
-                          if (chapters.trim() === "") return;
-                          const n = clampInt(Number(chapters), 0, 500);
-                          setChapters(String(n));
-                        }}
                       />
                     </div>
-
-                    <div className="mt-3 text-xs text-white/50">Nota: la lectura se registra por <b>cantidad de capítulos</b>.</div>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <div className="flex items-center gap-2 font-medium">
-                      <HeartHandshake size={18} className="opacity-80" />
-                      Tiempo de oración
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      <div>
-                        <div className="text-xs text-white/60 mb-1">Horas</div>
-                        <Input
-                          inputMode="numeric"
-                          placeholder="0"
-                          value={prayerH}
-                          onFocus={(e) => {
-                            if (prayerH === "0") setPrayerH("");
-                            try { (e.target as HTMLInputElement).select(); } catch {}
-                          }}
-                          onChange={(e) => setPrayerH(onlyDigits(e.target.value))}
-                          onBlur={() => {
-                            if (prayerH.trim() === "") return;
-                            const n = clampInt(Number(prayerH), 0, 24);
-                            setPrayerH(String(n));
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <div className="text-xs text-white/60 mb-1">Minutos</div>
-                        <Input
-                          inputMode="numeric"
-                          placeholder="0"
-                          value={prayerM}
-                          onFocus={(e) => {
-                            if (prayerM === "0") setPrayerM("");
-                            try { (e.target as HTMLInputElement).select(); } catch {}
-                          }}
-                          onChange={(e) => setPrayerM(onlyDigits(e.target.value))}
-                          onBlur={() => {
-                            if (prayerM.trim() === "") return;
-                            const n = clampInt(Number(prayerM), 0, 59);
-                            setPrayerM(String(n));
-                          }}
-                        />
-                      </div>
+                    <div>
+                      <div className="text-sm text-white/60">Minutos</div>
+                      <Input
+                        value={prayerM}
+                        inputMode="numeric"
+                        onChange={(e) => setPrayerM(onlyDigits(e.target.value))}
+                        placeholder="0"
+                      />
                     </div>
                   </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button variant="primary" onClick={save}>
-                    {mode === "editing" ? "Guardar cambios" : "Guardar"}
-                  </Button>
-
-                  {mode === "editing" && (
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setMode("done");
-                        setMsg("");
-                      }}
-                    >
-                      Cancelar
-                    </Button>
-                  )}
                 </div>
               </div>
-            </Card>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Button onClick={save}>Guardar</Button>
+                <div className="text-sm text-white/60">{msg}</div>
+              </div>
+
+              {mode === "done" ? <Summary allowEdit={true} /> : null}
+            </div>
           )}
-        </div>
-      </PageFade>
-    </Container>
+        </Card>
+      </Container>
+    </PageFade>
   );
 }

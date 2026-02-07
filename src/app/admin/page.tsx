@@ -35,7 +35,12 @@ function minusDays(iso: string, days: number) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function fmtMinutes(min: number) {
+function fmtCapitulos(n: number) {
+  const v = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  return `${v} cap`;
+}
+
+function fmtOracion(min: number) {
   const t = Math.max(0, Math.floor(Number(min || 0)));
   const h = Math.floor(t / 60);
   const m = t % 60;
@@ -154,18 +159,18 @@ export default function AdminPersonaDetallePage() {
   }, [rows]);
 
   const trend = useMemo(() => {
-    const map = new Map<string, { chapters: number; prayer: number }>();
+    const map = new Map<string, { bible: number; prayer: number }>();
     for (const r of rows) {
       const k = weekKey(r.report_date);
-      const cur = map.get(k) ?? { chapters: 0, prayer: 0 };
-      cur.chapters += Number(r.chapters_count ?? 0);
+      const cur = map.get(k) ?? { bible: 0, prayer: 0 };
+      cur.bible += Number(r.chapters_count ?? 0);
       cur.prayer += Number(r.prayer_minutes ?? 0);
       map.set(k, cur);
     }
     const labels = Array.from(map.keys()).sort();
     return labels.map((k) => ({
       label: k.slice(5),
-      chapters: map.get(k)!.chapters,
+      bible: map.get(k)!.bible,
       prayer: map.get(k)!.prayer,
     }));
   }, [rows]);
@@ -251,8 +256,8 @@ export default function AdminPersonaDetallePage() {
               <Card>
                 <div className="text-sm font-semibold mb-3">Resumen del rango</div>
                 <div className="grid gap-3 md:grid-cols-3">
-                  <Stat label="Capítulos" value={fmtMinutes(totals.bible)} />
-                  <Stat label="Oración" value={fmtMinutes(totals.prayer)} />
+                  <Stat label="Capítulos" value={fmtOracion(totals.bible)} />
+                  <Stat label="Oración" value={fmtOracion(totals.prayer)} />
                   <Stat label="Reportes" value={totals.reports} />
                 </div>
               </Card>
@@ -285,8 +290,8 @@ export default function AdminPersonaDetallePage() {
                       {rows.map((r) => (
                         <tr key={r.report_date} className="border-b border-white/5">
                           <td className="py-2 pr-3">{r.report_date}</td>
-                          <td className="py-2 pr-3">{fmtMinutes(Number(r.chapters_count ?? 0))}</td>
-                          <td className="py-2 pr-3">{fmtMinutes(Number(r.prayer_minutes ?? 0))}</td>
+                          <td className="py-2 pr-3">{fmtOracion(Number(r.chapters_count ?? 0))}</td>
+                          <td className="py-2 pr-3">{fmtOracion(Number(r.prayer_minutes ?? 0))}</td>
                         </tr>
                       ))}
                       {rows.length === 0 && (

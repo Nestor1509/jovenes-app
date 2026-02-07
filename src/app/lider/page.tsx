@@ -18,10 +18,8 @@ type WeekStats = {
   group_id: string;
   week_start: string;
   active_youth: number;
-  total_bible_chapters: number;
-  avg_bible_chapters_per_youth: number;
+  total_bible_minutes: number;
   total_prayer_minutes: number;
-  avg_prayer_minutes_per_youth: number;
   total_reports: number;
 };
 
@@ -29,10 +27,8 @@ type MonthStats = {
   group_id: string;
   month_start: string;
   active_youth: number;
-  total_bible_chapters: number;
-  avg_bible_chapters_per_youth: number;
+  total_bible_minutes: number;
   total_prayer_minutes: number;
-  avg_prayer_minutes_per_youth: number;
   total_reports: number;
 };
 
@@ -40,12 +36,17 @@ type YouthTotals = {
   user_id: string;
   name: string;
   group_id: string;
-  total_bible_chapters: number;
+  total_bible_minutes: number;
   total_prayer_minutes: number;
   total_reports: number;
 };
 
-function formatearMinutos(min: any) {
+function formatearCapitulos(n: any) {
+  const v = Math.max(0, Math.floor(Number(n ?? 0)));
+  return `${v} cap`;
+}
+
+function formatearOracion(min: any) {
   const t = Math.max(0, Math.floor(Number(min ?? 0)));
   const h = Math.floor(t / 60);
   const m = t % 60;
@@ -188,15 +189,6 @@ export default function LiderPage() {
       20000
     );
 
-    if (wsRes.error || msRes.error) {
-      const err = (wsRes.error ?? msRes.error) as any;
-      setMsg(
-        `No se pudieron cargar estadísticas. ` +
-          (err?.message ? `Detalle: ${err.message}. ` : "") +
-          "Si acabas de cambiar el reporte a capítulos, asegúrate de ejecutar el SQL de vistas (supabase/sql/03_views_chapters.sql) en Supabase."
-      );
-    }
-
     setWeekStats((wsRes.data as WeekStats) ?? null);
     setMonthStats((msRes.data as MonthStats) ?? null);
   }
@@ -218,22 +210,22 @@ export default function LiderPage() {
   const topData = useMemo(() => {
     const sorted = [...youth].sort((a, b) => {
       const av =
-        topMode === "bible" ? a.total_bible_chapters : topMode === "prayer" ? a.total_prayer_minutes : a.total_reports;
+        topMode === "bible" ? a.total_bible_minutes : topMode === "prayer" ? a.total_prayer_minutes : a.total_reports;
       const bv =
-        topMode === "bible" ? b.total_bible_chapters : topMode === "prayer" ? b.total_prayer_minutes : b.total_reports;
+        topMode === "bible" ? b.total_bible_minutes : topMode === "prayer" ? b.total_prayer_minutes : b.total_reports;
       return Number(bv ?? 0) - Number(av ?? 0);
     });
 
     return sorted.slice(0, 10).map((y) => ({
-      unit: topMode === "bible" ? "chapters" : topMode === "prayer" ? "minutes" : "reports",
       name: y.name.length > 12 ? y.name.slice(0, 12) + "…" : y.name,
       fullName: y.name,
       value:
         topMode === "bible"
-          ? Number(y.total_bible_chapters ?? 0)
+          ? Number(y.total_bible_minutes ?? 0)
           : topMode === "prayer"
           ? Number(y.total_prayer_minutes ?? 0)
           : Number(y.total_reports ?? 0),
+      unit: topMode === "bible" ? "chapters" : topMode === "prayer" ? "minutes" : "reports",
     }));
   }, [youth, topMode]);
 
@@ -300,10 +292,8 @@ export default function LiderPage() {
                 {weekStats ? (
                   <div className="grid gap-2">
                     <Stat label="Jóvenes activos" value={Number(weekStats.active_youth ?? 0)} />
-                    <Stat label="Capítulos (total)" value={Number(weekStats.total_bible_chapters ?? 0)} />
-                    <Stat label="Capítulos (prom./joven)" value={Number(weekStats.avg_bible_chapters_per_youth ?? 0)} />
-                    <Stat label="Oración (total)" value={formatearMinutos(weekStats.total_prayer_minutes)} />
-                    <Stat label="Oración (prom./joven)" value={formatearMinutos(weekStats.avg_prayer_minutes_per_youth)} />
+                    <Stat label="Capítulos total" value={formatearCapitulos(weekStats.total_bible_minutes)} />
+                    <Stat label="Oración total" value={formatearOracion(weekStats.total_prayer_minutes)} />
                     <Stat label="Reportes" value={Number(weekStats.total_reports ?? 0)} />
                   </div>
                 ) : (
@@ -337,10 +327,8 @@ export default function LiderPage() {
                 {monthStats ? (
                   <div className="grid gap-2">
                     <Stat label="Jóvenes activos" value={Number(monthStats.active_youth ?? 0)} />
-                    <Stat label="Capítulos (total)" value={Number(monthStats.total_bible_chapters ?? 0)} />
-                    <Stat label="Capítulos (prom./joven)" value={Number(monthStats.avg_bible_chapters_per_youth ?? 0)} />
-                    <Stat label="Oración (total)" value={formatearMinutos(monthStats.total_prayer_minutes)} />
-                    <Stat label="Oración (prom./joven)" value={formatearMinutos(monthStats.avg_prayer_minutes_per_youth)} />
+                    <Stat label="Capítulos total" value={formatearCapitulos(monthStats.total_bible_minutes)} />
+                    <Stat label="Oración total" value={formatearOracion(monthStats.total_prayer_minutes)} />
                     <Stat label="Reportes" value={Number(monthStats.total_reports ?? 0)} />
                   </div>
                 ) : (
@@ -397,8 +385,8 @@ export default function LiderPage() {
                   {youth.map((y) => (
                     <tr key={y.user_id} className="border-b border-white/5">
                       <td className="py-3 pr-3 font-medium">{y.name}</td>
-                      <td className="py-3 pr-3">{Number(y.total_bible_chapters ?? 0)}</td>
-                      <td className="py-3 pr-3">{formatearMinutos(y.total_prayer_minutes)}</td>
+                      <td className="py-3 pr-3">{formatearCapitulos(y.total_bible_minutes)}</td>
+                      <td className="py-3 pr-3">{formatearOracion(y.total_prayer_minutes)}</td>
                       
 <td className="py-3 pr-3">
   <Link href={`/lider/joven/${y.user_id}`} className="inline-flex">

@@ -2,31 +2,22 @@
 
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 
-type Unit = "minutes" | "chapters" | "reports";
-
 type Item = {
   name: string;
   fullName?: string;
-  value: number;
-  unit?: Unit; // por defecto minutes
+  value: number; // minutos o cantidad
+  // unit: minutes (default), chapters, reports
+  unit?: "minutes" | "chapters" | "reports";
+  isCount?: boolean;
 };
 
-function fmtMinutesShort(min: number) {
-  const t = Math.max(0, Math.floor(Number(min || 0)));
-  const h = Math.floor(t / 60);
-  const m = t % 60;
-  if (h <= 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
-}
-
-function fmtMinutesLong(min: number) {
-  const t = Math.max(0, Math.floor(Number(min || 0)));
-  const h = Math.floor(t / 60);
-  const m = t % 60;
-  if (h <= 0) return `${m} min`;
-  if (m === 0) return `${h} h`;
-  return `${h} h ${m} min`;
+function fmtDurationTick(v: number, isCount?: boolean) {
+  const n = Math.max(0, Number(v || 0));
+  if (isCount) return `${Math.round(n)}`;
+  if (n < 60) return `${Math.round(n)}m`;
+  const h = n / 60;
+  if (Math.abs(h - Math.round(h)) < 1e-6) return `${Math.round(h)}h`;
+  return `${h.toFixed(1)}h`;
 }
 
 function niceMax(dataMax: number) {
@@ -35,27 +26,20 @@ function niceMax(dataMax: number) {
   return Math.ceil(m / step) * step;
 }
 
-function tickFormatter(v: number, unit: Unit) {
-  if (unit === "chapters") return `${Math.round(Math.max(0, v))}`;
-  if (unit === "reports") return `${Math.round(Math.max(0, v))}`;
-  return fmtMinutesShort(v);
-}
-
-function tooltipValue(v: number, unit: Unit) {
-  if (unit === "chapters") return `${Math.max(0, Math.floor(v || 0))} capítulos`;
-  if (unit === "reports") return `${Math.max(0, Math.floor(v || 0))} reportes`;
-  return fmtMinutesLong(v);
-}
-
-function tooltipLabel(unit: Unit) {
-  if (unit === "chapters") return "Capítulos";
-  if (unit === "reports") return "Reportes";
-  return "Minutos";
+function fmtValue(v: number, isCount?: boolean) {
+  if (isCount) return `${Math.max(0, Math.floor(v || 0))} reportes`;
+  const t = Math.max(0, Math.floor(v || 0));
+  const h = Math.floor(t / 60);
+  const m = t % 60;
+  if (h <= 0) return `${m} min`;
+  if (m === 0) return `${h} h`;
+  return `${h} h ${m} min`;
 }
 
 export default function TopYouthBars({ data }: { data: Item[] }) {
-  const unit: Unit = (data?.[0]?.unit as Unit) || "minutes";
-  const max = niceMax(Math.max(0, ...data.map((d) => Number(d.value || 0))));
+  const unit = (data?.[0] as any)?.unit as any;
+  const isCount = unit === "chapters" || unit === "reports" || !!data?.[0]?.isCount;
+  const max = niceMax(Math.max(...data.map((d) => Number(d.value || 0))));
 
   return (
     <div className="w-full" style={{ height: 320 }}>
@@ -79,12 +63,11 @@ export default function TopYouthBars({ data }: { data: Item[] }) {
           />
           <YAxis
             domain={[0, max || 0]}
-            tickFormatter={(v) => tickFormatter(Number(v), unit)}
+            tickFormatter={(v) => (unit === "minutes" || !unit ? fmtDurationTick(Number(v), false) : `${Math.round(Math.max(0, Number(v || 0)))}`)}
             tick={{ fontSize: 12, fill: "rgba(255,255,255,0.65)" }}
             tickLine={false}
             axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
             width={40}
-            allowDecimals={false}
           />
           <Tooltip
             cursor={{ fill: "rgba(255,255,255,0.06)" }}
@@ -99,7 +82,12 @@ export default function TopYouthBars({ data }: { data: Item[] }) {
               const item = payload?.[0]?.payload as Item | undefined;
               return item?.fullName || item?.name || "";
             }}
-            formatter={(value: any) => [tooltipValue(Number(value), unit), tooltipLabel(unit)]}
+            formatter={(value: any) => {
+              const n = Math.max(0, Math.floor(Number(value ?? 0)));
+              if (unit === "chapters") return [`${n} cap`, "Capítulos"];
+              if (unit === "reports") return [`${n} reportes`, "Reportes"];
+              return [fmtValue(n, false), "Minutos"];
+            }}
           />
 
           <Bar dataKey="value" fill="url(#tyb_value)" radius={[12, 12, 6, 6]} maxBarSize={48} />

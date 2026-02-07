@@ -24,7 +24,12 @@ type ReportRow = {
   prayer_minutes: number;
 };
 
-function formatearMinutos(min: any) {
+function formatearCapitulos(n: any) {
+  const v = Math.max(0, Math.floor(Number(n ?? 0)));
+  return `${v} cap`;
+}
+
+function formatearOracion(min: any) {
   const t = Math.max(0, Math.floor(Number(min ?? 0)));
   const h = Math.floor(t / 60);
   const m = t % 60;
@@ -107,10 +112,10 @@ export default function AdminGeneralPage() {
   }, [me, fromDate, toDate]);
 
   const byUser = useMemo(() => {
-    const map = new Map<string, { chapters: number; prayer: number; reports: number; last?: string }>();
+    const map = new Map<string, { bible: number; prayer: number; reports: number; last?: string }>();
     for (const r of reports) {
-      const prev = map.get(r.user_id) ?? { chapters: 0, prayer: 0, reports: 0 };
-      prev.chapters += Number(r.chapters_count ?? 0);
+      const prev = map.get(r.user_id) ?? { bible: 0, prayer: 0, reports: 0 };
+      prev.bible += Number(r.chapters_count ?? 0);
       prev.prayer += Number(r.prayer_minutes ?? 0);
       prev.reports += 1;
       if (!prev.last || r.report_date > prev.last) prev.last = r.report_date;
@@ -122,13 +127,13 @@ export default function AdminGeneralPage() {
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     const base = perfiles.map((p) => {
-      const s = byUser.get(p.id) ?? { chapters: 0, prayer: 0, reports: 0, last: undefined };
+      const s = byUser.get(p.id) ?? { bible: 0, prayer: 0, reports: 0, last: undefined };
       return {
         ...p,
-        chapters_count: s.chapters,
+        chapters_count: s.bible,
         prayer_minutes: s.prayer,
         reports: s.reports,
-        total_minutes: s.chapters + s.prayer,
+        total_minutes: s.bible + s.prayer,
         last_report: s.last ?? null,
         group_name: p.groups?.name ?? "Sin grupo",
       };
@@ -143,20 +148,20 @@ export default function AdminGeneralPage() {
   }, [perfiles, byUser, query]);
 
   const totals = useMemo(() => {
-    const t = { users: perfiles.length, reports: 0, chapters: 0, prayer: 0 };
+    const t = { users: perfiles.length, reports: 0, bible: 0, prayer: 0 };
     for (const r of reports) {
       t.reports += 1;
-      t.chapters += Number(r.chapters_count ?? 0);
+      t.bible += Number(r.chapters_count ?? 0);
       t.prayer += Number(r.prayer_minutes ?? 0);
     }
     return t;
   }, [perfiles, reports]);
 
   const roleTotals = useMemo(() => {
-    const acc: Record<string, { users: number; reports: number; chapters: number; prayer: number }> = {
-      youth: { users: 0, reports: 0, chapters: 0, prayer: 0 },
-      leader: { users: 0, reports: 0, chapters: 0, prayer: 0 },
-      admin: { users: 0, reports: 0, chapters: 0, prayer: 0 },
+    const acc: Record<string, { users: number; reports: number; bible: number; prayer: number }> = {
+      youth: { users: 0, reports: 0, bible: 0, prayer: 0 },
+      leader: { users: 0, reports: 0, bible: 0, prayer: 0 },
+      admin: { users: 0, reports: 0, bible: 0, prayer: 0 },
     };
     const roleById = new Map(perfiles.map((p) => [p.id, p.role]));
     for (const p of perfiles) acc[p.role].users += 1;
@@ -164,7 +169,7 @@ export default function AdminGeneralPage() {
       const role = roleById.get(r.user_id);
       if (!role) continue;
       acc[role].reports += 1;
-      acc[role].chapters += Number(r.chapters_count ?? 0);
+      acc[role].bible += Number(r.chapters_count ?? 0);
       acc[role].prayer += Number(r.prayer_minutes ?? 0);
     }
     return acc;
@@ -209,8 +214,8 @@ export default function AdminGeneralPage() {
             <div className="grid gap-3 md:grid-cols-4 mb-6">
               <Stat label="Personas (total)" value={totals.users} />
               <Stat label="Reportes" value={totals.reports} />
-              <Stat label="Capítulos (total)" value={totals.chapters} />
-              <Stat label="Oración total" value={formatearMinutos(totals.prayer)} />
+              <Stat label="Lectura total" value={formatearOracion(totals.bible)} />
+              <Stat label="Oración total" value={formatearOracion(totals.prayer)} />
             </div>
 
             <Card className="mb-6">
@@ -233,8 +238,8 @@ export default function AdminGeneralPage() {
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <Stat label="Personas" value={roleTotals[r].users} />
                       <Stat label="Reportes" value={roleTotals[r].reports} />
-                      <Stat label="Capítulos" value={roleTotals[r].chapters} />
-                      <Stat label="Oración" value={formatearMinutos(roleTotals[r].prayer)} />
+                      <Stat label="Lectura" value={formatearOracion(roleTotals[r].bible)} />
+                      <Stat label="Oración" value={formatearOracion(roleTotals[r].prayer)} />
                     </div>
                   </div>
                 ))}
@@ -262,7 +267,7 @@ export default function AdminGeneralPage() {
                       <th className="text-left py-2 pr-3">Nombre</th>
                       <th className="text-left py-2 pr-3">Rol</th>
                       <th className="text-left py-2 pr-3">Grupo</th>
-                      <th className="text-right py-2 pr-3">Capítulos</th>
+                      <th className="text-right py-2 pr-3">Lectura</th>
                       <th className="text-right py-2 pr-3">Oración</th>
                       <th className="text-right py-2 pr-3">Reportes</th>
                       <th className="text-right py-2 pr-3">Total</th>
@@ -276,10 +281,10 @@ export default function AdminGeneralPage() {
                         <td className="py-2 pr-3 font-medium">{r.name}</td>
                         <td className="py-2 pr-3 text-white/80">{roleLabel(r.role)}</td>
                         <td className="py-2 pr-3 text-white/80">{r.group_name}</td>
-                        <td className="py-2 pr-3 text-right">{r.chapters_count}</td>
-                        <td className="py-2 pr-3 text-right">{formatearMinutos(r.prayer_minutes)}</td>
+                        <td className="py-2 pr-3 text-right">{formatearCapitulos(r.chapters_count)}</td>
+                        <td className="py-2 pr-3 text-right">{formatearOracion(r.prayer_minutes)}</td>
                         <td className="py-2 pr-3 text-right">{r.reports}</td>
-                        <td className="py-2 pr-3 text-right font-semibold">{formatearMinutos(r.total_minutes)}</td>
+                        <td className="py-2 pr-3 text-right font-semibold">{formatearOracion(r.total_minutes)}</td>
                         <td className="py-2 text-right">
                           <Link
                             className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 transition"

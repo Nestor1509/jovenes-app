@@ -1,60 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
-import { cached, invalidate } from "@/lib/cache";
-import { useMyProfile } from "@/lib/useMyProfile";
-import { Container, Card, Title, Subtitle, PageFade, Stat, Select } from "@/components/ui";
-import LoadingCard from "@/components/LoadingCard";
-import { Users, CalendarDays, BarChart3, Trophy, RefreshCw } from "lucide-react";
-const TopYouthBars = dynamic(() => import("@/components/charts/TopYouthBars"), { ssr: false });
+import { Container, Card, Title, Subtitle, Button, Input, PageFade } from "@/components/ui";
+import { BookOpen, HeartHandshake, PencilLine, CheckCircle2 } from "lucide-react";
 
-
-type Group = { id: string; name: string };
-
-type WeekStats = {
-  group_id: string;
-  week_start: string;
-  active_youth: number;
-  total_bible_chapters: number;
-  avg_bible_chapters_per_youth: number;
-  total_prayer_minutes: number;
-  avg_prayer_minutes_per_youth: number;
-  total_reports: number;
-};
-
-type MonthStats = {
-  group_id: string;
-  month_start: string;
-  active_youth: number;
-  total_bible_chapters: number;
-  avg_bible_chapters_per_youth: number;
-  total_prayer_minutes: number;
-  avg_prayer_minutes_per_youth: number;
-  total_reports: number;
-};
-
-type YouthTotals = {
-  user_id: string;
-  name: string;
-  group_id: string;
-  total_bible_chapters: number;
-  total_prayer_minutes: number;
-  total_reports: number;
-};
-
-function formatearMinutos(min: any) {
-  const t = Math.max(0, Math.floor(Number(min ?? 0)));
-  const h = Math.floor(t / 60);
-  const m = t % 60;
-  if (h <= 0) return `${m} min`;
-  if (m === 0) return `${h} h`;
-  return `${h} h ${m} min`;
-}
-
-function hoyISO() {
+function todayISO() {
   const d = new Date();
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -62,368 +13,305 @@ function hoyISO() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function inicioSemanaISO(dateISO: string) {
-  const d = new Date(dateISO + "T00:00:00");
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+function clampInt(n: number, min: number, max: number) {
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, Math.floor(n)));
 }
 
-function inicioMesISO(dateISO: string) {
-  return dateISO.slice(0, 7) + "-01";
+function toMinutes(hStr: string, mStr: string) {
+  const h = hStr.trim() === "" ? 0 : clampInt(Number(hStr), 0, 24);
+  const m = mStr.trim() === "" ? 0 : clampInt(Number(mStr), 0, 59);
+  return h * 60 + m;
 }
 
-export default function LiderPage() {
-  const { loading: authLoading, session, profile, error: authError } = useMyProfile();
+function fromMinutes(total: number) {
+  const t = Number.isFinite(total) ? Math.max(0, Math.floor(total)) : 0;
+  return { h: Math.floor(t / 60), m: t % 60 };
+}
 
-  const [loading, setLoading] = useState(true);
+function traducirError(msg: string) {
+  const m = (msg ?? "").toLowerCase();
+  if (m.includes("jwt")) return "Tu sesión expiró. Vuelve a iniciar sesión.";
+  if (m.includes("permission denied") || m.includes("not allowed")) return "No tienes permisos para realizar esta acción.";
+  if (m.includes("duplicate key") || m.includes("unique")) return "Ya existe un reporte para esa fecha.";
+  return "Ocurrió un error. Intenta de nuevo.";
+}
+
+type ExistingReport = {
+  chapters_count: number;
+  prayer_minutes: number;
+};
+
+type Mode = "loading" | "new" | "askEdit" | "editing" | "done" | "doneLocked";
+
+function lockKey(dateISO: string) {
+  return `report_lock_${dateISO}`;
+}
+
+function notifyLockChanged() {
+  try {
+    window.dispatchEvent(new Event("report_lock_changed"));
+  } catch {}
+}
+
+export default function ReportePage() {
+  const today = useMemo(() => todayISO(), []);
+  const dateKey = today;
+
+  const [mode, setMode] = useState<Mode>("loading");
+  const [existing, setExisting] = useState<ExistingReport | null>(null);
+
+  // ✅ Nuevo: capítulos (sin tiempo de lectura)
+  const [chapters, setChapters] = useState<string>("0");
+
+  // Oración (igual que antes)
+  const [prayerH, setPrayerH] = useState<string>("0");
+  const [prayerM, setPrayerM] = useState<string>("0");
+
   const [msg, setMsg] = useState("");
 
-  const [group, setGroup] = useState<Group | null>(null);
+  useEffect(() => {
+    (async () => {
+      setMode("loading");
+      setMsg("");
 
-  const [availableWeeks, setAvailableWeeks] = useState<string[]>([]);
-  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
-  const [selectedWeek, setSelectedWeek] = useState<string>("");
-  const [selectedMonth, setSelectedMonth] = useState<string>("");
+      const { data: sess } = await supabase.auth.getSession();
+      if (!sess.session) {
+        window.location.href = "/";
+        return;
+      }
 
-  const [weekStats, setWeekStats] = useState<WeekStats | null>(null);
-  const [monthStats, setMonthStats] = useState<MonthStats | null>(null);
+      const { data, error } = await supabase
+        .from("reports")
+        .select("chapters_count, prayer_minutes")
+        .eq("user_id", sess.session.user.id)
+        .eq("report_date", dateKey)
+        .maybeSingle();
 
-  const [youth, setYouth] = useState<YouthTotals[]>([]);
-  const [topMode, setTopMode] = useState<"bible" | "prayer" | "reports">("bible");
+      if (!error && data) {
+        setExisting({
+          chapters_count: Number((data as any).chapters_count ?? 0),
+          prayer_minutes: Number((data as any).prayer_minutes ?? 0),
+        });
 
-  const today = useMemo(() => hoyISO(), []);
-  const defaultWeek = useMemo(() => inicioSemanaISO(today), [today]);
-  const defaultMonth = useMemo(() => inicioMesISO(today), [today]);
+        const locked = (() => {
+          try {
+            return localStorage.getItem(lockKey(dateKey)) === "1";
+          } catch {
+            return false;
+          }
+        })();
 
-  async function cargarBase() {
+        setMode(locked ? "doneLocked" : "askEdit");
+        setChapters("0");
+        setPrayerH("0");
+        setPrayerM("0");
+      } else {
+        setExisting(null);
+        setMode("new");
+        try {
+          localStorage.removeItem(lockKey(dateKey));
+        } catch {}
+        notifyLockChanged();
+        setChapters("0");
+        setPrayerH("0");
+        setPrayerM("0");
+      }
+    })();
+  }, [dateKey]);
+
+  const onlyDigits = (v: string) => v.replace(/[^\d]/g, "");
+
+  function loadExistingIntoForm() {
+    setChapters(String(existing?.chapters_count ?? 0));
+    const p = fromMinutes(existing?.prayer_minutes ?? 0);
+    setPrayerH(String(p.h));
+    setPrayerM(String(p.m));
+  }
+
+  async function save() {
     setMsg("");
-    setLoading(true);
 
-    if (!session) {
-      setLoading(false);
-      return;
-    }
+    const { data: sess } = await supabase.auth.getSession();
+    const user = sess.session?.user;
+    if (!user) return;
 
-    if (authError) {
-      setMsg(authError);
-      setLoading(false);
-      return;
-    }
+    const chapters_count = clampInt(Number(chapters || 0), 0, 999);
+    const prayer_minutes = toMinutes(prayerH, prayerM);
 
-    if (!profile || (profile.role !== "leader" && profile.role !== "admin")) {
-      setMsg("Esta página es solo para líderes.");
-      setLoading(false);
-      return;
-    }
-
-    if (!profile.group_id) {
-      setMsg("No tienes grupo asignado. Pide al administrador que te asigne uno.");
-      setLoading(false);
-      return;
-    }
-
-    const gRes = await cached(`leader:${session.user.id}:group:${profile.group_id}`, async () => supabase.from("groups").select("id,name").eq("id", profile.group_id).maybeSingle(), 60000);
-    if (gRes.error) setMsg("No se pudo cargar tu grupo.");
-    setGroup((gRes.data as Group) ?? null);
-
-    const [wListRes, mListRes, ytRes] = await cached(`leader:${session.user.id}:base:${profile.group_id}`, async () => Promise.all([
-      supabase
-        .from("leader_group_stats_week")
-        .select("week_start")
-        .eq("group_id", profile.group_id)
-        .order("week_start", { ascending: false })
-        .limit(24),
-      supabase
-        .from("leader_group_stats_month")
-        .select("month_start")
-        .eq("group_id", profile.group_id)
-        .order("month_start", { ascending: false })
-        .limit(12),
-      supabase.from("leader_youth_totals").select("*").eq("group_id", profile.group_id).order("name"),
-    ]), 20000);
-
-    const weeks = Array.from(new Set((wListRes.data ?? []).map((x: any) => x.week_start))).filter(Boolean);
-    const months = Array.from(new Set((mListRes.data ?? []).map((x: any) => x.month_start))).filter(Boolean);
-
-    setAvailableWeeks(weeks.length ? weeks : [defaultWeek]);
-    setAvailableMonths(months.length ? months : [defaultMonth]);
-
-    setSelectedWeek((prev) => prev || (weeks[0] ?? defaultWeek));
-    setSelectedMonth((prev) => prev || (months[0] ?? defaultMonth));
-
-    if (ytRes.error) {
-      setMsg("No se pudo cargar la lista de jóvenes.");
-      setYouth([]);
-    } else {
-      setYouth((ytRes.data ?? []) as YouthTotals[]);
-    }
-
-    setLoading(false);
-  }
-
-  async function cargarStatsPorSeleccion(groupId: string, weekStart: string, monthStart: string) {
-    if (!session) return;
-    const [wsRes, msRes] = await cached(
-      `leader:${session.user.id}:stats:${groupId}:${weekStart}:${monthStart}`,
-      async () =>
-        Promise.all([
-          supabase
-            .from("leader_group_stats_week")
-            .select("*")
-            .eq("group_id", groupId)
-            .eq("week_start", weekStart)
-            .maybeSingle(),
-          supabase
-            .from("leader_group_stats_month")
-            .select("*")
-            .eq("group_id", groupId)
-            .eq("month_start", monthStart)
-            .maybeSingle(),
-        ]),
-      20000
+    // Compatibilidad: existe bible_minutes en la tabla antigua → lo dejamos en 0
+    const { error } = await supabase.from("reports").upsert(
+      {
+        user_id: user.id,
+        report_date: today,
+        chapters_count,
+        bible_minutes: 0,
+        prayer_minutes,
+      } as any,
+      { onConflict: "user_id,report_date" }
     );
 
-    if (wsRes.error || msRes.error) {
-      const err = (wsRes.error ?? msRes.error) as any;
-      setMsg(
-        `No se pudieron cargar estadísticas. ` +
-          (err?.message ? `Detalle: ${err.message}. ` : "") +
-          "Si acabas de cambiar el reporte a capítulos, asegúrate de ejecutar el SQL de vistas (supabase/sql/03_views_chapters.sql) en Supabase."
-      );
+    if (error) {
+      setMsg(traducirError(error.message));
+      return;
     }
 
-    setWeekStats((wsRes.data as WeekStats) ?? null);
-    setMonthStats((msRes.data as MonthStats) ?? null);
+    setExisting({ chapters_count, prayer_minutes });
+    try {
+      localStorage.removeItem(lockKey(dateKey));
+    } catch {}
+    notifyLockChanged();
+    setMode("done");
+    setMsg("✅ Guardado correctamente");
   }
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!session) return;
-    cargarBase();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, session?.user?.id, profile?.group_id, profile?.role, authError]);
+  const Summary = ({ allowEdit }: { allowEdit: boolean }) => {
+    const p = fromMinutes(existing?.prayer_minutes ?? 0);
 
-  useEffect(() => {
-    if (!profile?.group_id) return;
-    if (!selectedWeek || !selectedMonth) return;
-    cargarStatsPorSeleccion(profile.group_id, selectedWeek, selectedMonth);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.group_id, selectedWeek, selectedMonth]);
-
-  const topData = useMemo(() => {
-    const sorted = [...youth].sort((a, b) => {
-      const av =
-        topMode === "bible" ? a.total_bible_chapters : topMode === "prayer" ? a.total_prayer_minutes : a.total_reports;
-      const bv =
-        topMode === "bible" ? b.total_bible_chapters : topMode === "prayer" ? b.total_prayer_minutes : b.total_reports;
-      return Number(bv ?? 0) - Number(av ?? 0);
-    });
-
-    return sorted.slice(0, 10).map((y) => ({
-      unit: topMode === "bible" ? "chapters" : topMode === "prayer" ? "minutes" : "reports",
-      name: y.name.length > 12 ? y.name.slice(0, 12) + "…" : y.name,
-      fullName: y.name,
-      value:
-        topMode === "bible"
-          ? Number(y.total_bible_chapters ?? 0)
-          : topMode === "prayer"
-          ? Number(y.total_prayer_minutes ?? 0)
-          : Number(y.total_reports ?? 0),
-    }));
-  }, [youth, topMode]);
-
-  if (authLoading) return <LoadingCard text="Cargando sesión…" />;
-
-  if (!session) {
     return (
-      <Container>
-        <PageFade>
-          <Card>
-            <Title>Inicia sesión</Title>
-            <Subtitle>Necesitas iniciar sesión para usar esta página.</Subtitle>
-          </Card>
-        </PageFade>
-      </Container>
-    );
-  }
+      <div className="grid gap-3">
+        <div className="flex items-center gap-2 text-emerald-200/90">
+          <CheckCircle2 size={18} />
+          <div className="font-semibold">Ya reportaste hoy</div>
+        </div>
 
-  if (loading) return <LoadingCard text="Cargando panel de líder…" />;
+        <div className="grid gap-2 text-sm text-white/70">
+          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+            <span className="flex items-center gap-2">
+              <BookOpen size={16} className="opacity-80" /> Capítulos leídos
+            </span>
+            <span className="font-semibold text-white">{existing?.chapters_count ?? 0}</span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+            <span className="flex items-center gap-2">
+              <HeartHandshake size={16} className="opacity-80" /> Oración
+            </span>
+            <span className="font-semibold text-white">
+              {p.h}h {p.m}m
+            </span>
+          </div>
+        </div>
+
+        {allowEdit ? (
+          <>
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem(lockKey(dateKey));
+                  } catch {}
+                  notifyLockChanged();
+                  loadExistingIntoForm();
+                  setMode("editing");
+                }}
+              >
+                <PencilLine size={16} className="mr-2" /> Editar reporte
+              </Button>
+
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  try {
+                    localStorage.setItem(lockKey(dateKey), "1");
+                  } catch {}
+                  notifyLockChanged();
+                  setMode("doneLocked");
+                }}
+              >
+                No, hoy no
+              </Button>
+            </div>
+
+            <div className="text-xs text-white/50">
+              Si eliges “No, hoy no”, no volverá a preguntarte hoy (puedes volver mañana).
+            </div>
+          </>
+        ) : (
+          <div className="text-xs text-white/50">Tu reporte de hoy está bloqueado para edición.</div>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <Container>
-      <PageFade>
-        <div className="grid gap-6">
-          <div className="flex items-end justify-between gap-3 flex-wrap">
-            <div>
-              <Title>Panel de líder</Title>
-              <Subtitle>{group ? `Grupo: ${group.name} (solo jóvenes)` : "Estadísticas del grupo"}</Subtitle>
-            </div>
-
-            <button
-              onClick={cargarBase}
-              className="px-3 py-2 rounded-xl hover:bg-white/10 text-sm inline-flex items-center gap-2"
-            >
-              <RefreshCw size={16} /> Actualizar
-            </button>
-          </div>
-
-          {msg && <div className="text-red-300 text-sm">{msg}</div>}
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <CalendarDays size={18} className="opacity-80" />
-                    <div className="text-sm font-semibold">Semana (jóvenes)</div>
-                  </div>
-                  <div className="text-xs text-white/60">Selecciona una semana</div>
-                </div>
-
-                <div className="w-full sm:w-56">
-                  <Select value={selectedWeek} onChange={(e) => setSelectedWeek(e.target.value)}>
-                    {availableWeeks.map((w) => (
-                      <option key={w} value={w}>
-                        {w}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                {weekStats ? (
-                  <div className="grid gap-2">
-                    <Stat label="Jóvenes activos" value={Number(weekStats.active_youth ?? 0)} />
-                    <Stat label="Capítulos (total)" value={Number(weekStats.total_bible_chapters ?? 0)} />
-                    <Stat label="Capítulos (prom./joven)" value={Number(weekStats.avg_bible_chapters_per_youth ?? 0)} />
-                    <Stat label="Oración (total)" value={formatearMinutos(weekStats.total_prayer_minutes)} />
-                    <Stat label="Oración (prom./joven)" value={formatearMinutos(weekStats.avg_prayer_minutes_per_youth)} />
-                    <Stat label="Reportes" value={Number(weekStats.total_reports ?? 0)} />
-                  </div>
-                ) : (
-                  <div className="text-sm text-white/70">No hay datos para esa semana.</div>
-                )}
-              </div>
-            </Card>
-
-            <Card>
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <BarChart3 size={18} className="opacity-80" />
-                    <div className="text-sm font-semibold">Mes (jóvenes)</div>
-                  </div>
-                  <div className="text-xs text-white/60">Selecciona un mes</div>
-                </div>
-
-                <div className="w-full sm:w-56">
-                  <Select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-                    {availableMonths.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                {monthStats ? (
-                  <div className="grid gap-2">
-                    <Stat label="Jóvenes activos" value={Number(monthStats.active_youth ?? 0)} />
-                    <Stat label="Capítulos (total)" value={Number(monthStats.total_bible_chapters ?? 0)} />
-                    <Stat label="Capítulos (prom./joven)" value={Number(monthStats.avg_bible_chapters_per_youth ?? 0)} />
-                    <Stat label="Oración (total)" value={formatearMinutos(monthStats.total_prayer_minutes)} />
-                    <Stat label="Oración (prom./joven)" value={formatearMinutos(monthStats.avg_prayer_minutes_per_youth)} />
-                    <Stat label="Reportes" value={Number(monthStats.total_reports ?? 0)} />
-                  </div>
-                ) : (
-                  <div className="text-sm text-white/70">No hay datos para ese mes.</div>
-                )}
-              </div>
-            </Card>
-          </div>
-
-          <Card>
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Trophy size={18} className="opacity-80" />
-                  <div className="text-sm font-semibold">Top 10 del grupo (solo jóvenes)</div>
-                </div>
-                <Subtitle>Visual (totales generales).</Subtitle>
-              </div>
-
-              <div className="w-full sm:w-64">
-                <div className="text-xs text-white/60 mb-1">Ordenar por</div>
-                <Select value={topMode} onChange={(e) => setTopMode(e.target.value as any)}>
-                  <option value="bible">Capítulos</option>
-                  <option value="prayer">Oración (minutos)</option>
-                  <option value="reports">Reportes (cantidad)</option>
-                </Select>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              {topData.length === 0 ? <div className="text-sm text-white/70">Aún no hay datos para mostrar.</div> : <TopYouthBars data={topData as any} />}
-            </div>
-          </Card>
-
-          <Card>
-            <div className="flex items-center gap-2 mb-2">
-              <Users size={18} className="opacity-80" />
-              <div className="text-sm font-semibold">Jóvenes del grupo (totales)</div>
-            </div>
-            <Subtitle>Sin incluir al líder ni al admin.</Subtitle>
-
-            <div className="mt-4 overflow-auto">
-              <table className="w-full text-sm">
-                <thead className="text-white/70">
-                  <tr className="border-b border-white/10">
-                    <th className="text-left py-3 pr-3">Nombre</th>
-                    <th className="text-left py-3 pr-3">Capítulos</th>
-                    <th className="text-left py-3 pr-3">Oración</th>
-                    <th className="text-left py-3 pr-3">Detalle</th>
-                    <th className="text-left py-3 pr-3">Reportes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {youth.map((y) => (
-                    <tr key={y.user_id} className="border-b border-white/5">
-                      <td className="py-3 pr-3 font-medium">{y.name}</td>
-                      <td className="py-3 pr-3">{Number(y.total_bible_chapters ?? 0)}</td>
-                      <td className="py-3 pr-3">{formatearMinutos(y.total_prayer_minutes)}</td>
-                      
-<td className="py-3 pr-3">
-  <Link href={`/lider/joven/${y.user_id}`} className="inline-flex">
-    <span className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15 transition">
-      Ver
-    </span>
-  </Link>
-</td>
-<td className="py-3 pr-3">{Number(y.total_reports ?? 0)}</td>
-                    </tr>
-                  ))}
-
-                  {youth.length === 0 && (
-                    <tr>
-                      <td className="py-4 text-white/70" colSpan={5}>
-                        No hay jóvenes en este grupo o aún no han registrado.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+    <PageFade>
+      <Container>
+        <div className="mb-6">
+          <Title>Reporte diario</Title>
+          <Subtitle>Reporta hoy tus capítulos leídos y tu tiempo de oración.</Subtitle>
         </div>
-      </PageFade>
-    </Container>
+
+        <Card className="p-5">
+          {mode === "loading" ? (
+            <div className="text-white/60">Cargando...</div>
+          ) : mode === "askEdit" ? (
+            <Summary allowEdit={true} />
+          ) : mode === "doneLocked" ? (
+            <Summary allowEdit={false} />
+          ) : (
+            <div className="grid gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {/* Capítulos */}
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="mb-2 flex items-center gap-2 text-white/80">
+                    <BookOpen size={18} className="opacity-80" />
+                    <div className="font-semibold">Lectura bíblica</div>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <div className="text-sm text-white/60">Capítulos leídos</div>
+                    <Input
+                      value={chapters}
+                      inputMode="numeric"
+                      onChange={(e) => setChapters(onlyDigits(e.target.value))}
+                      placeholder="0"
+                    />
+                    <div className="text-xs text-white/45">Nota: la lectura se registra por cantidad de capítulos.</div>
+                  </div>
+                </div>
+
+                {/* Oración */}
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="mb-2 flex items-center gap-2 text-white/80">
+                    <HeartHandshake size={18} className="opacity-80" />
+                    <div className="font-semibold">Tiempo de oración</div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-sm text-white/60">Horas</div>
+                      <Input
+                        value={prayerH}
+                        inputMode="numeric"
+                        onChange={(e) => setPrayerH(onlyDigits(e.target.value))}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-sm text-white/60">Minutos</div>
+                      <Input
+                        value={prayerM}
+                        inputMode="numeric"
+                        onChange={(e) => setPrayerM(onlyDigits(e.target.value))}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Button onClick={save}>Guardar</Button>
+                <div className="text-sm text-white/60">{msg}</div>
+              </div>
+
+              {mode === "done" ? <Summary allowEdit={true} /> : null}
+            </div>
+          )}
+        </Card>
+      </Container>
+    </PageFade>
   );
 }

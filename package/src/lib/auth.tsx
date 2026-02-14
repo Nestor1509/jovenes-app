@@ -84,10 +84,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // 1) initial load
-    refresh();
+    let mounted = true;
 
-    // 2) keep in sync without refetching on every page
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const { data, error: sErr } = await withTimeout(supabase.auth.getSession(), 8000);
+        if (sErr) throw new Error(sErr.message);
+
+        if (!mounted) return;
+
+        const s = data.session ?? null;
+        setSession(s);
+
+        if (!s?.user?.id) {
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
+
+        const p = await loadProfile(s.user.id);
+        if (!mounted) return;
+        setProfile(p);
+      } catch (e: any) {
+        if (!mounted) return;
+        setProfile(null);
+        setError(e?.message ? String(e.message) : "No se pudo cargar tu perfil.");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+
     const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, sess) => {
       setSession(sess);
       if (!sess?.user?.id) {
@@ -109,9 +137,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => {
+      mounted = false;
       sub.subscription.unsubscribe();
     };
-  }, [refresh, loadProfile]);
+  }, [loadProfile]);
 
   const value = useMemo<AuthCtx>(
     () => ({ loading, session, profile, error, refresh, signOut }),

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Container, Card, Title, Subtitle, Button, Input, PageFade } from "@/components/ui";
 import { Clock3, BookOpen, HeartHandshake, PencilLine, CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 function todayISO() {
   const d = new Date();
@@ -55,7 +56,7 @@ function lockKey(dateISO: string) {
 function notifyLockChanged() {
   try {
     window.dispatchEvent(new Event("report_lock_changed"));
-  } catch {}
+  } catch { }
 }
 
 export default function ReportePage() {
@@ -73,31 +74,39 @@ export default function ReportePage() {
 
   const [msg, setMsg] = useState("");
 
+  const router = useRouter();
+
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
       setMode("loading");
       setMsg("");
 
-      const { data: sess } = await supabase.auth.getSession();
-      if (!sess.session) {
-        window.location.href = "/";
+      const { data, error } = await supabase.auth.getSession();
+      const session = data.session;
+
+      // Si aún no hay sesión, manda al login SIN recargar la página completa
+      if (!session) {
+        if (!cancelled) router.replace("/");
         return;
       }
 
-      const { data, error } = await supabase
+      const { data: rep, error: repErr } = await supabase
         .from("reports")
         .select("bible_minutes, prayer_minutes")
-        .eq("user_id", sess.session.user.id)
+        .eq("user_id", session.user.id)
         .eq("report_date", dateKey)
         .maybeSingle();
 
-      if (!error && data) {
+      if (cancelled) return;
+
+      if (!repErr && rep) {
         setExisting({
-          bible_minutes: data.bible_minutes ?? 0,
-          prayer_minutes: data.prayer_minutes ?? 0,
+          bible_minutes: rep.bible_minutes ?? 0,
+          prayer_minutes: rep.prayer_minutes ?? 0,
         });
-        // Si el usuario ya dijo que NO quiere editar hoy, no volvemos a preguntar
-        // y tampoco mostramos la opción de editar.
+
         const locked = (() => {
           try {
             return localStorage.getItem(lockKey(dateKey)) === "1";
@@ -106,21 +115,17 @@ export default function ReportePage() {
           }
         })();
 
-        // Preguntamos si quiere editar; mientras tanto no mostramos el formulario.
         setMode(locked ? "doneLocked" : "askEdit");
-        // form limpio por si decide crear/editar luego
         setBibleH("0");
         setBibleM("0");
         setPrayerH("0");
         setPrayerM("0");
       } else {
-        // No hay reporte hoy: formulario limpio (0)
         setExisting(null);
         setMode("new");
-        // Si no hay reporte hoy, quitamos el lock de hoy por si quedó de antes.
         try {
           localStorage.removeItem(lockKey(dateKey));
-        } catch {}
+        } catch { }
         notifyLockChanged();
         setBibleH("0");
         setBibleM("0");
@@ -128,7 +133,12 @@ export default function ReportePage() {
         setPrayerM("0");
       }
     })();
-  }, [dateKey]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dateKey, router]);
+
 
   const onlyDigits = (v: string) => v.replace(/[^\d]/g, "");
 
@@ -169,7 +179,7 @@ export default function ReportePage() {
     setExisting({ bible_minutes, prayer_minutes });
     try {
       localStorage.removeItem(lockKey(dateKey));
-    } catch {}
+    } catch { }
     notifyLockChanged();
     setMode("done");
     setMsg("✅ Guardado correctamente");
@@ -214,7 +224,7 @@ export default function ReportePage() {
                 onClick={() => {
                   try {
                     localStorage.removeItem(lockKey(dateKey));
-                  } catch {}
+                  } catch { }
                   notifyLockChanged();
                   loadExistingIntoForm();
                   setMode("editing");
@@ -262,7 +272,7 @@ export default function ReportePage() {
                     onClick={() => {
                       try {
                         localStorage.removeItem(lockKey(dateKey));
-                      } catch {}
+                      } catch { }
                       notifyLockChanged();
                       loadExistingIntoForm();
                       setMode("editing");
@@ -279,7 +289,7 @@ export default function ReportePage() {
                       // que la app no muestre la opción de reporte/editar otra vez.
                       try {
                         localStorage.setItem(lockKey(dateKey), "1");
-                      } catch {}
+                      } catch { }
                       notifyLockChanged();
                       setMode("doneLocked");
                       setMsg("");

@@ -265,7 +265,7 @@ export default function AdminPersonaDetallePage() {
               <Card>
                 <div className="text-sm font-semibold mb-3">Resumen</div>
                 <div className="grid gap-3 md:grid-cols-3">
-                  <Stat label="Capítulos" value={fmtMinutes(totals.bible)} />
+                  <Stat label="Lectura" value={fmtMinutes(totals.bible)} />
                   <Stat label="Oración" value={fmtMinutes(totals.prayer)} />
                   <Stat label="Reportes" value={totals.reports} />
                 </div>
@@ -291,7 +291,7 @@ export default function AdminPersonaDetallePage() {
                     <thead className="text-white/70">
                       <tr className="border-b border-white/10">
                         <th className="text-left py-2 pr-3">Fecha</th>
-                        <th className="text-left py-2 pr-3">Capítulos</th>
+                        <th className="text-left py-2 pr-3">Lectura</th>
                         <th className="text-left py-2 pr-3">Oración</th>
                       </tr>
                     </thead>
@@ -336,7 +336,7 @@ export default function AdminPersonaDetallePage() {
                     </div>
 
                     <div className="mt-3 grid gap-3 md:grid-cols-3">
-                      <Stat label="Capítulos" value={fmtMinutes(Number(selected.bible_minutes ?? 0))} />
+                      <Stat label="Lectura" value={fmtMinutes(Number(selected.bible_minutes ?? 0))} />
                       <Stat label="Oración" value={fmtMinutes(Number(selected.prayer_minutes ?? 0))} />
                       <Stat
                         label="Caps"

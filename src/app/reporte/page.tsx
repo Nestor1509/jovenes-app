@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Container, Card, Title, Subtitle, Button, Input, PageFade } from "@/components/ui";
 import { Clock3, BookOpen, HeartHandshake, PencilLine, CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 function todayISO() {
   const d = new Date();
@@ -42,8 +43,8 @@ function traducirError(msg: string) {
 }
 
 type ExistingReport = {
+  bible_minutes: number;
   prayer_minutes: number;
-  chapters_count?: number | null;
 };
 
 type Mode = "loading" | "new" | "askEdit" | "editing" | "done" | "doneLocked";
@@ -55,7 +56,7 @@ function lockKey(dateISO: string) {
 function notifyLockChanged() {
   try {
     window.dispatchEvent(new Event("report_lock_changed"));
-  } catch {}
+  } catch { }
 }
 
 export default function ReportePage() {
@@ -66,39 +67,47 @@ export default function ReportePage() {
   const [existing, setExisting] = useState<ExistingReport | null>(null);
 
   // UX: por defecto mostramos 0 (limpio)
-  const [prayerH, setPrayerH] = useState<string>("");
-  const [prayerM, setPrayerM] = useState<string>("");
-
-  // Campos (ahora requeridos)
-  const [chaptersCount, setChaptersCount] = useState<string>("");
+  const [bibleH, setBibleH] = useState<string>("0");
+  const [bibleM, setBibleM] = useState<string>("0");
+  const [prayerH, setPrayerH] = useState<string>("0");
+  const [prayerM, setPrayerM] = useState<string>("0");
 
   const [msg, setMsg] = useState("");
 
+  const router = useRouter();
+
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
+
       setMode("loading");
       setMsg("");
 
-      const { data: sess } = await supabase.auth.getSession();
-      if (!sess.session) {
-        window.location.href = "/";
+      const { data } = await supabase.auth.getSession();
+      const session = data.session;
+
+      if (!session) {
+        router.replace("/");   // ✅ sin recarga dura
         return;
       }
 
-      const { data, error } = await supabase
+
+      const { data: rep, error: repErr } = await supabase
         .from("reports")
-        .select("prayer_minutes, chapters_count")
-        .eq("user_id", sess.session.user.id)
+        .select("bible_minutes, prayer_minutes")
+        .eq("user_id", session.user.id)
         .eq("report_date", dateKey)
         .maybeSingle();
 
-      if (!error && data) {
+      if (cancelled) return;
+
+      if (!repErr && rep) {
         setExisting({
-          prayer_minutes: data.prayer_minutes ?? 0,
-          chapters_count: (data as any).chapters_count ?? null,
+          bible_minutes: rep.bible_minutes ?? 0,
+          prayer_minutes: rep.prayer_minutes ?? 0,
         });
-        // Si el usuario ya dijo que NO quiere editar hoy, no volvemos a preguntar
-        // y tampoco mostramos la opción de editar.
+
         const locked = (() => {
           try {
             return localStorage.getItem(lockKey(dateKey)) === "1";
@@ -107,40 +116,40 @@ export default function ReportePage() {
           }
         })();
 
-        // Preguntamos si quiere editar; mientras tanto no mostramos el formulario.
         setMode(locked ? "doneLocked" : "askEdit");
-        // form limpio por si decide crear/editar luego
-        setPrayerH("");
-        setPrayerM("");
-        setChaptersCount("");
+        setBibleH("0");
+        setBibleM("0");
+        setPrayerH("0");
+        setPrayerM("0");
       } else {
-        // No hay reporte hoy: formulario limpio (0)
         setExisting(null);
         setMode("new");
-        // Si no hay reporte hoy, quitamos el lock de hoy por si quedó de antes.
         try {
           localStorage.removeItem(lockKey(dateKey));
-        } catch {}
+        } catch { }
         notifyLockChanged();
-        setPrayerH("");
-        setPrayerM("");
-        setChaptersCount("");
+        setBibleH("0");
+        setBibleM("0");
+        setPrayerH("0");
+        setPrayerM("0");
       }
     })();
-  }, [dateKey]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dateKey, router]);
+
 
   const onlyDigits = (v: string) => v.replace(/[^\d]/g, "");
 
   function loadExistingIntoForm() {
+    const b = fromMinutes(existing?.bible_minutes ?? 0);
     const p = fromMinutes(existing?.prayer_minutes ?? 0);
-
-    // UX: si el valor es 0, mostramos el input vacío (se ve más limpio que un "0" fijo)
-    setPrayerH(p.h === 0 ? "" : String(p.h));
-    setPrayerM(p.m === 0 ? "" : String(p.m));
-
-    // Capítulos (requerido)
-    const cc = existing?.chapters_count;
-    setChaptersCount(cc === null || cc === undefined || !Number.isFinite(Number(cc)) ? "" : String(cc));
+    setBibleH(String(b.h));
+    setBibleM(String(b.m));
+    setPrayerH(String(p.h));
+    setPrayerM(String(p.m));
   }
 
   async function save() {
@@ -150,24 +159,15 @@ export default function ReportePage() {
     const user = sess.session?.user;
     if (!user) return;
 
+    const bible_minutes = toMinutes(bibleH, bibleM);
     const prayer_minutes = toMinutes(prayerH, prayerM);
-
-    if (chaptersCount.trim() === "") {
-      setMsg("Ingresa la cantidad de capítulos leídos.");
-      return;
-    }
-
-    const chapters_count = clampInt(Number(chaptersCount), 0, 500);
 
     const { error } = await supabase.from("reports").upsert(
       {
         user_id: user.id,
         report_date: today,
-        // Compatibilidad con vistas/estadísticas existentes en Supabase:
-        // reaprovechamos bible_minutes como "capítulos".
-        bible_minutes: chapters_count,
+        bible_minutes,
         prayer_minutes,
-        chapters_count,
       },
       { onConflict: "user_id,report_date" }
     );
@@ -177,16 +177,17 @@ export default function ReportePage() {
       return;
     }
 
-    setExisting({ prayer_minutes, chapters_count });
+    setExisting({ bible_minutes, prayer_minutes });
     try {
       localStorage.removeItem(lockKey(dateKey));
-    } catch {}
+    } catch { }
     notifyLockChanged();
     setMode("done");
     setMsg("✅ Guardado correctamente");
   }
 
   const Summary = ({ allowEdit }: { allowEdit: boolean }) => {
+    const b = fromMinutes(existing?.bible_minutes ?? 0);
     const p = fromMinutes(existing?.prayer_minutes ?? 0);
 
     return (
@@ -199,23 +200,21 @@ export default function ReportePage() {
         <div className="grid gap-2 text-sm text-white/70">
           <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3">
             <span className="flex items-center gap-2">
+              <BookOpen size={16} className="opacity-80" /> Lectura bíblica
+            </span>
+            <span className="font-semibold text-white">
+              {b.h}h {b.m}m
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+            <span className="flex items-center gap-2">
               <HeartHandshake size={16} className="opacity-80" /> Oración
             </span>
             <span className="font-semibold text-white">
               {p.h}h {p.m}m
             </span>
           </div>
-
-          {existing?.chapters_count ? (
-            <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/70">Capítulos leídos</span>
-                  <span className="font-semibold text-white">{existing.chapters_count}</span>
-                </div>
-              </div>
-            </div>
-          ) : null}
         </div>
 
         {allowEdit ? (
@@ -226,7 +225,7 @@ export default function ReportePage() {
                 onClick={() => {
                   try {
                     localStorage.removeItem(lockKey(dateKey));
-                  } catch {}
+                  } catch { }
                   notifyLockChanged();
                   loadExistingIntoForm();
                   setMode("editing");
@@ -257,7 +256,7 @@ export default function ReportePage() {
         <div className="grid gap-6">
           <div>
             <Title>Mi reporte</Title>
-            <Subtitle>Registra tu cantidad de capítulos leídos y tu tiempo de oración (en horas y minutos).</Subtitle>
+            <Subtitle>Registra tu lectura bíblica y tu tiempo de oración (en horas y minutos).</Subtitle>
           </div>
 
           <Card>
@@ -274,7 +273,7 @@ export default function ReportePage() {
                     onClick={() => {
                       try {
                         localStorage.removeItem(lockKey(dateKey));
-                      } catch {}
+                      } catch { }
                       notifyLockChanged();
                       loadExistingIntoForm();
                       setMode("editing");
@@ -291,7 +290,7 @@ export default function ReportePage() {
                       // que la app no muestre la opción de reporte/editar otra vez.
                       try {
                         localStorage.setItem(lockKey(dateKey), "1");
-                      } catch {}
+                      } catch { }
                       notifyLockChanged();
                       setMode("doneLocked");
                       setMsg("");
@@ -327,22 +326,38 @@ export default function ReportePage() {
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                     <div className="flex items-center gap-2 font-medium">
                       <BookOpen size={18} className="opacity-80" />
-                      Capítulos leídos
+                      Lectura bíblica
                     </div>
 
-                    <div className="mt-3">
-                      <div className="text-xs text-white/60 mb-1">Cantidad</div>
-                      <Input
-                        inputMode="numeric"
-                        placeholder="0"
-                        value={chaptersCount}
-                        onChange={(e) => setChaptersCount(onlyDigits(e.target.value))}
-                        onBlur={() => {
-                          if (chaptersCount.trim() === "") return;
-                          const n = clampInt(Number(chaptersCount), 0, 500);
-                          setChaptersCount(String(n));
-                        }}
-                      />
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-xs text-white/60 mb-1">Horas</div>
+                        <Input
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={bibleH}
+                          onChange={(e) => setBibleH(onlyDigits(e.target.value))}
+                          onBlur={() => {
+                            if (bibleH.trim() === "") return setBibleH("0");
+                            const n = clampInt(Number(bibleH), 0, 24);
+                            setBibleH(String(n));
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <div className="text-xs text-white/60 mb-1">Minutos</div>
+                        <Input
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={bibleM}
+                          onChange={(e) => setBibleM(onlyDigits(e.target.value))}
+                          onBlur={() => {
+                            if (bibleM.trim() === "") return setBibleM("0");
+                            const n = clampInt(Number(bibleM), 0, 59);
+                            setBibleM(String(n));
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -359,15 +374,9 @@ export default function ReportePage() {
                           inputMode="numeric"
                           placeholder="0"
                           value={prayerH}
-                          onFocus={(e) => {
-                            if (prayerH === "0") setPrayerH("");
-                            try {
-                              (e.target as HTMLInputElement).select();
-                            } catch {}
-                          }}
                           onChange={(e) => setPrayerH(onlyDigits(e.target.value))}
                           onBlur={() => {
-                            if (prayerH.trim() === "") return;
+                            if (prayerH.trim() === "") return setPrayerH("0");
                             const n = clampInt(Number(prayerH), 0, 24);
                             setPrayerH(String(n));
                           }}
@@ -379,15 +388,9 @@ export default function ReportePage() {
                           inputMode="numeric"
                           placeholder="0"
                           value={prayerM}
-                          onFocus={(e) => {
-                            if (prayerM === "0") setPrayerM("");
-                            try {
-                              (e.target as HTMLInputElement).select();
-                            } catch {}
-                          }}
                           onChange={(e) => setPrayerM(onlyDigits(e.target.value))}
                           onBlur={() => {
-                            if (prayerM.trim() === "") return;
+                            if (prayerM.trim() === "") return setPrayerM("0");
                             const n = clampInt(Number(prayerM), 0, 59);
                             setPrayerM(String(n));
                           }}
@@ -420,7 +423,7 @@ export default function ReportePage() {
                 </div>
 
                 <div className="text-xs text-white/50">
-                  Tip: si borras un campo, se guarda como 0. (Capítulos es requerido.)
+                  Tip: si borras un campo, se guarda como 0.
                 </div>
               </div>
             )}

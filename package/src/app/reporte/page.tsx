@@ -80,17 +80,18 @@ export default function ReportePage() {
     let cancelled = false;
 
     (async () => {
+
       setMode("loading");
       setMsg("");
 
-      const { data, error } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.getSession();
       const session = data.session;
 
-      // Si aún no hay sesión, manda al login SIN recargar la página completa
       if (!session) {
-        if (!cancelled) router.replace("/");
+        router.replace("/");   // ✅ sin recarga dura
         return;
       }
+
 
       const { data: rep, error: repErr } = await supabase
         .from("reports")

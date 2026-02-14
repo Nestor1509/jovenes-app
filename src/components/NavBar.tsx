@@ -107,7 +107,6 @@ export default function NavBar() {
 
   const items: NavItem[] = [
     { href: "/", label: "Inicio", icon: Home, show: () => true },
-    { href: "/publico", label: "Público", icon: Globe, show: () => true },
     { href: "/reporte", label: "Reporte", icon: ClipboardList, show: (_r, has) => !!has && !hideReport },
     { href: "/mis-estadisticas", label: "Mis estadísticas", icon: BarChart3, show: (_r, has) => !!has },
     { href: "/perfil", label: "Perfil", icon: Users, show: (_r, has) => !!has },

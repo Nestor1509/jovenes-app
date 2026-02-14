@@ -74,13 +74,13 @@ export default function Home() {
 
             <div className="mt-5 grid gap-3 text-sm text-white/80">
               <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                ✅ Reporte diario en horas y minutos
+                ✅ Reporte diario
               </div>
               <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                📊 Estadísticas personales, por grupo y públicas
+                📊 Estadísticas personales
               </div>
               <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                🔒 Acceso por roles: joven, líder y admin
+                🔒 Acceso por roles
               </div>
             </div>
 

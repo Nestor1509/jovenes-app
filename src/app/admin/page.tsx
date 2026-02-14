@@ -137,7 +137,7 @@ export default function AdminPage() {
   const topTitle = useMemo(() => {
     const who = whoMode === "youth" ? "Jóvenes" : "Líderes";
     const metric =
-      topMetric === "bible" ? "Capítulos" : topMetric === "prayer" ? "Oración" : "Reportes";
+      topMetric === "bible" ? "Capítulos" : topMetric === "prayer" ? "Oración" : "Reportes"
     return `Top 10 ${who} — ${metric}`;
   }, [whoMode, topMetric]);
 
@@ -147,15 +147,15 @@ export default function AdminPage() {
         topMetric === "bible"
           ? Number(a.total_bible_minutes ?? 0)
           : topMetric === "prayer"
-          ? Number(a.total_prayer_minutes ?? 0)
-          : Number(a.total_reports ?? 0);
+            ? Number(a.total_prayer_minutes ?? 0)
+            : Number(a.total_reports ?? 0);
 
       const bv =
         topMetric === "bible"
           ? Number(b.total_bible_minutes ?? 0)
           : topMetric === "prayer"
-          ? Number(b.total_prayer_minutes ?? 0)
-          : Number(b.total_reports ?? 0);
+            ? Number(b.total_prayer_minutes ?? 0)
+            : Number(b.total_reports ?? 0);
 
       return bv - av;
     });
@@ -163,18 +163,15 @@ export default function AdminPage() {
     return sorted.slice(0, 10).map((p) => ({
       name: p.name.length > 12 ? p.name.slice(0, 12) + "…" : p.name,
       fullName: p.name,
-      // Si es reportes, es "cantidad", pero TopYouthBars lo formatea como minutos.
-      // Para evitar confusión: cuando sea reportes, mostramos el número como "minutos" no sirve.
-      // Así que si es reportes, lo convertimos a "minutos ficticios" NO. Mejor: dejamos el valor,
-      // y ajustamos el tooltip en TopYouthBars si quieres (yo te doy opción abajo).
       value:
         topMetric === "bible"
           ? Number(p.total_bible_minutes ?? 0)
           : topMetric === "prayer"
-          ? Number(p.total_prayer_minutes ?? 0)
-          : Number(p.total_reports ?? 0),
-      isCount: topMetric === "reports",
+            ? Number(p.total_prayer_minutes ?? 0)
+            : Number(p.total_reports ?? 0),
+      unit: topMetric === "bible" ? "chapters" : topMetric === "prayer" ? "minutes" : "reports",
     }));
+
   }, [people, topMetric]);
 
   // Admin: crear grupo

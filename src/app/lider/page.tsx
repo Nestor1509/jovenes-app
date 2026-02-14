@@ -51,6 +51,16 @@ function fmtMinutes(min: number) {
   return `${h} h ${m} min`;
 }
 
+function fmtChapters(v: number) {
+  const n = Math.max(0, Math.floor(Number(v || 0)));
+  return n.toLocaleString("es-CO");
+}
+
+function getChapters(r: { chapters_count?: number | null; bible_minutes?: number | null }) {
+  // compat: chapters_count nuevo, bible_minutes legacy
+  return Number(r.chapters_count ?? r.bible_minutes ?? 0);
+}
+
 function weekKey(iso: string) {
   // Semana por lunes
   const d = new Date(iso + "T00:00:00");
@@ -170,7 +180,7 @@ export default function LiderJovenDetallePage() {
   const totals = useMemo(() => {
     let b = 0, p = 0;
     for (const r of rows) {
-      b += Number(r.bible_minutes ?? 0);
+      b += getChapters(r);
       p += Number(r.prayer_minutes ?? 0);
     }
     return { bible: b, prayer: p, reports: rows.length };
@@ -181,7 +191,7 @@ export default function LiderJovenDetallePage() {
     for (const r of rows) {
       const k = weekKey(r.report_date);
       const cur = map.get(k) ?? { bible: 0, prayer: 0 };
-      cur.bible += Number(r.bible_minutes ?? 0);
+      cur.bible += getChapters(r);
       cur.prayer += Number(r.prayer_minutes ?? 0);
       map.set(k, cur);
     }
@@ -274,7 +284,7 @@ export default function LiderJovenDetallePage() {
               <Card>
                 <div className="text-sm font-semibold mb-3">Resumen del rango</div>
                 <div className="grid gap-3 md:grid-cols-3">
-                  <Stat label="Capítulos" value={fmtMinutes(totals.bible)} />
+                  <Stat label="Capítulos" value={fmtChapters(totals.bible)} />
                   <Stat label="Oración" value={fmtMinutes(totals.prayer)} />
                   <Stat label="Reportes" value={totals.reports} />
                 </div>
@@ -316,7 +326,7 @@ export default function LiderJovenDetallePage() {
                           className="border-b border-white/5 hover:bg-white/5 cursor-pointer"
                         >
                           <td className="py-2 pr-3">{r.report_date}</td>
-                          <td className="py-2 pr-3">{fmtMinutes(Number(r.bible_minutes ?? 0))}</td>
+                          <td className="py-2 pr-3">{fmtChapters(getChapters(r))}</td>
                           <td className="py-2 pr-3">{fmtMinutes(Number(r.prayer_minutes ?? 0))}</td>
                         </tr>
                       ))}
@@ -349,16 +359,9 @@ export default function LiderJovenDetallePage() {
                     </div>
 
                     <div className="mt-3 grid gap-3 md:grid-cols-3">
-                      <Stat label="Capítulos" value={fmtMinutes(Number(selected.bible_minutes ?? 0))} />
+                      <Stat label="Capítulos" value={fmtChapters(getChapters(selected))} />
                       <Stat label="Oración" value={fmtMinutes(Number(selected.prayer_minutes ?? 0))} />
-                      <Stat
-                        label="Caps"
-                        value={
-                          selected.chapters_count === null || selected.chapters_count === undefined
-                            ? "—"
-                            : String(selected.chapters_count)
-                        }
-                      />
+                      <Stat label="Reportes" value={"1"} />
                     </div>
 
                     <div className="mt-3 grid gap-2">

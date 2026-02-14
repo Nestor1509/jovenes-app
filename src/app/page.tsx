@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Container, Card, Title, Subtitle, Button, Input, PageFade } from "@/components/ui";
-import { Sparkles } from "lucide-react";
+import { Container, Card, Title, Subtitle, Button, PageFade } from "@/components/ui";
+import { Sparkles, ShieldCheck, ArrowRight } from "lucide-react";
 
 function traducirError(msg: string) {
   const m = (msg ?? "").toLowerCase();
@@ -15,8 +15,7 @@ function traducirError(msg: string) {
 }
 
 export default function Home() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
@@ -33,12 +32,20 @@ export default function Home() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  async function signIn(e: React.FormEvent) {
-    e.preventDefault();
+  async function signInGoogle() {
     setMsg("");
-
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setMsg(traducirError(error.message));
+    try {
+      setBusy(true);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin + "/auth/callback",
+        },
+      });
+      if (error) setMsg(traducirError(error.message));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -87,41 +94,37 @@ export default function Home() {
           <Card>
             <Title>{sessionEmail ? "Listo para continuar" : "Iniciar sesión"}</Title>
             <Subtitle>
-              {sessionEmail ? "Usa el menú superior." : "Ingresa con el correo y contraseña que te dio el admin."}
+              {sessionEmail
+                ? "Usa el menú superior para Reporte, Mis estadísticas, Público, etc."
+                : "Solo se permite iniciar sesión con Google."}
             </Subtitle>
 
             {!sessionEmail ? (
-              <form onSubmit={signIn} className="mt-5 grid gap-3">
-                <div>
-                  <div className="text-xs text-white/60 mb-1">Correo</div>
-                  <Input
-                    placeholder="correo@ejemplo.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                  />
+              <div className="mt-5 grid gap-4">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/75">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={16} className="opacity-80" />
+                    <span className="font-medium text-white">Acceso seguro</span>
+                  </div>
+                  <div className="mt-1 text-xs text-white/60">
+                    Tu cuenta queda registrada automáticamente como <b>Joven</b>.
+                  </div>
                 </div>
 
-                <div>
-                  <div className="text-xs text-white/60 mb-1">Contraseña</div>
-                  <Input
-                    placeholder="••••••••"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="current-password"
-                  />
-                </div>
-
-                <Button type="submit" className="mt-2">
-                  Entrar
+                <Button type="button" onClick={signInGoogle} disabled={busy} className="w-full justify-center py-3 text-base">
+                  {busy ? "Conectando…" : "Entrar con Google"}
+                  <ArrowRight size={18} />
                 </Button>
 
-                {msg && <p className="text-sm text-red-300">{msg}</p>}
-              </form>
+                {msg && (
+                  <p className={msg.startsWith("✅") ? "text-sm text-green-300" : "text-sm text-red-300"}>
+                    {msg}
+                  </p>
+                )}
+              </div>
             ) : (
               <div className="mt-5 text-sm text-white/70">
-                Navega con el menú superior (Reporte, Mis estadísticas, Público, etc.).
+                Navega con el menú superior.
               </div>
             )}
           </Card>

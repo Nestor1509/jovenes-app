@@ -1,133 +1,379 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import dynamicImport from "next/dynamic";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { Container, Card, Title, Subtitle, Button, PageFade } from "@/components/ui";
-import { Sparkles, ShieldCheck, ArrowRight } from "lucide-react";
+import { cached } from "@/lib/cache";
+import { useMyProfile, Profile } from "@/lib/useMyProfile";
+import { Container, Card, Title, Subtitle, PageFade, Stat, Button, Input } from "@/components/ui";
+import LoadingCard from "@/components/LoadingCard";
+import { ArrowLeft, CalendarDays, RefreshCw, X } from "lucide-react";
+const TrendLine = dynamicImport(() => import("@/components/charts/TrendLine"), { ssr: false });
 
-function traducirError(msg: string) {
-  const m = (msg ?? "").toLowerCase();
-  if (m.includes("invalid login")) return "Correo o contraseña incorrectos.";
-  if (m.includes("email not confirmed")) return "Tu correo no está confirmado (revisa tu email).";
-  if (m.includes("jwt")) return "Tu sesión expiró. Inicia sesión de nuevo.";
-  if (m.includes("rate limit")) return "Demasiados intentos. Espera un momento y vuelve a intentar.";
-  return "Ocurrió un error. Intenta de nuevo.";
+
+type ReportRow = {
+  report_date: string;
+  bible_minutes: number;
+  prayer_minutes: number;
+  chapters_count?: number | null;
+  bible_chapters?: string | null;
+  prayer_topic?: string | null;
+};
+
+function isoToday() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
-export default function Home() {
-  const [busy, setBusy] = useState(false);
+function startOfMonth(iso: string) {
+  return iso.slice(0, 7) + "-01";
+}
 
-  const [sessionEmail, setSessionEmail] = useState<string | null>(null);
+function minusDays(iso: string, days: number) {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() - days);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function fmtMinutes(min: number) {
+  const t = Math.max(0, Math.floor(Number(min || 0)));
+  const h = Math.floor(t / 60);
+  const m = t % 60;
+  if (h <= 0) return `${m} min`;
+  if (m === 0) return `${h} h`;
+  return `${h} h ${m} min`;
+}
+
+function weekKey(iso: string) {
+  // Semana por lunes
+  const d = new Date(iso + "T00:00:00");
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+export default function LiderJovenDetallePage() {
+  const router = useRouter();
+  const params = useParams<{ id: string }>();
+  const youthId = params?.id;
+
+  const { loading: authLoading, session, profile: me, error: authError } = useMyProfile();
+
+  const [loading, setLoading] = useState(true);
+  const [restricted, setRestricted] = useState(false);
   const [msg, setMsg] = useState("");
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSessionEmail(data.session?.user.email ?? null);
-    });
+  const [youth, setYouth] = useState<Profile | null>(null);
+  const [rows, setRows] = useState<ReportRow[]>([]);
+  const [selected, setSelected] = useState<ReportRow | null>(null);
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSessionEmail(session?.user.email ?? null);
-    });
+  const today = useMemo(() => isoToday(), []);
+  const [from, setFrom] = useState(minusDays(today, 30));
+  const [to, setTo] = useState(today);
 
-    return () => sub.subscription.unsubscribe();
-  }, []);
-
-  async function signInGoogle() {
+  async function load() {
+    setLoading(true);
     setMsg("");
-    try {
-      setBusy(true);
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: window.location.origin + "/auth/callback",
-        },
-      });
-      if (error) setMsg(traducirError(error.message));
-    } finally {
-      setBusy(false);
+    setRestricted(false);
+
+    if (!session) {
+      setLoading(false);
+      return;
     }
+    if (authError) {
+      setMsg(authError);
+      setLoading(false);
+      return;
+    }
+    if (!me || !["leader", "admin"].includes(me.role)) {
+      setRestricted(true);
+      setLoading(false);
+      return;
+    }
+    if (!youthId) {
+      setMsg("Falta el ID del joven.");
+      setLoading(false);
+      return;
+    }
+
+    // 1) Perfil del joven
+    const pRes = await supabase.from("profiles").select("id,name,role,group_id").eq("id", youthId).maybeSingle();
+
+    if (pRes.error) {
+      // Si RLS bloquea, mostramos restringido
+      setRestricted(true);
+      setLoading(false);
+      return;
+    }
+
+    const p = pRes.data as Profile | null;
+    if (!p || p.role !== "youth") {
+      setMsg("Este usuario no es un joven.");
+      setLoading(false);
+      return;
+    }
+
+    // Líder: solo su grupo. Admin: cualquier grupo.
+    if (me.role === "leader") {
+      if (!me.group_id || !p.group_id || me.group_id !== p.group_id) {
+        setRestricted(true);
+        setLoading(false);
+        return;
+      }
+    }
+
+    setYouth(p);
+
+    // 2) Reportes del rango
+    const rRes = await supabase
+      .from("reports")
+      .select("report_date,bible_minutes,prayer_minutes,chapters_count,bible_chapters,prayer_topic")
+      .eq("user_id", youthId)
+      .gte("report_date", from)
+      .lte("report_date", to)
+      .order("report_date", { ascending: true });
+
+    if (rRes.error) {
+      setRestricted(true);
+      setLoading(false);
+      return;
+    }
+
+    setRows((rRes.data ?? []) as any);
+    setSelected(null);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    if (authLoading) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, session?.user?.id, me?.role, me?.group_id, youthId]);
+
+  useEffect(() => {
+    if (!session || authLoading) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from, to]);
+
+  const totals = useMemo(() => {
+    let b = 0, p = 0;
+    for (const r of rows) {
+      b += Number(r.bible_minutes ?? 0);
+      p += Number(r.prayer_minutes ?? 0);
+    }
+    return { bible: b, prayer: p, reports: rows.length };
+  }, [rows]);
+
+  const trend = useMemo(() => {
+    const map = new Map<string, { bible: number; prayer: number }>();
+    for (const r of rows) {
+      const k = weekKey(r.report_date);
+      const cur = map.get(k) ?? { bible: 0, prayer: 0 };
+      cur.bible += Number(r.bible_minutes ?? 0);
+      cur.prayer += Number(r.prayer_minutes ?? 0);
+      map.set(k, cur);
+    }
+    const labels = Array.from(map.keys()).sort();
+    return labels.map((k) => ({
+      label: k.slice(5), // MM-DD
+      bible: map.get(k)!.bible,
+      prayer: map.get(k)!.prayer,
+    }));
+  }, [rows]);
+
+  if (authLoading) return <LoadingCard text="Cargando sesión…" />;
+
+  if (!session) {
+    return (
+      <Container>
+        <PageFade>
+          <Card>
+            <Title>Detalle</Title>
+            <Subtitle>Inicia sesión para ver esta página.</Subtitle>
+            <div className="mt-4">
+              <Button onClick={() => (window.location.href = "/")}>Ir a inicio</Button>
+            </div>
+          </Card>
+        </PageFade>
+      </Container>
+    );
   }
 
   return (
     <Container>
-      <div className="mb-6 flex items-center gap-4">
-        <div className="h-14 w-14 rounded-3xl bg-white/5 border border-white/10 grid place-items-center text-lg font-semibold">MA</div>
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Ministerio Águilas</h1>
-          <p className="text-sm text-white/70">Casa de Dios Cruzada Cristiana</p>
-        </div>
-      </div>
-
       <PageFade>
-        <div className="grid gap-6 md:grid-cols-2 items-start">
-          <Card className="relative overflow-hidden">
-            <div className="absolute -top-24 -right-24 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-            <div className="absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-
-            <div className="flex items-center gap-2">
-              <Sparkles size={18} className="opacity-80" />
-              <Title>Bienvenido</Title>
-            </div>
-            <Subtitle>
-              Lleva un registro sencillo de tu lectura bíblica y tu tiempo de oración.
-            </Subtitle>
-
-            <div className="mt-5 grid gap-3 text-sm text-white/80">
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                ✅ Reporte diario en horas y minutos
-              </div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                📊 Estadísticas personales, por grupo y públicas
-              </div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                🔒 Acceso por roles: joven, líder y admin
-              </div>
+        <div className="grid gap-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <Button className="mb-3 bg-white/10 text-white border border-white/10 hover:bg-white/15" onClick={() => router.back()}>
+                <ArrowLeft size={16} className="mr-2" />
+                Volver
+              </Button>
+              <Title>Detalle</Title>
+              <Subtitle>
+                Vista por persona · Rango: {from} → {to}
+              </Subtitle>
+              {restricted && <div className="text-red-300 text-sm mt-2">Acceso restringido.</div>}
+              {msg && <div className="text-red-300 text-sm mt-2">{msg}</div>}
+              {youth && !restricted && (
+                <div className="text-sm text-white/70 mt-1">
+                  {youth.name} · Joven
+                </div>
+              )}
             </div>
 
-            {sessionEmail && (
-              <div className="mt-5 text-sm text-white/70">
-                Sesión iniciada: <strong className="text-white">{sessionEmail}</strong>
+            <Card className="p-4 min-w-[300px]">
+              <div className="flex items-center gap-2 mb-2">
+                <CalendarDays size={16} className="opacity-80" />
+                <div className="text-sm font-semibold">Rango</div>
               </div>
-            )}
-          </Card>
 
-          <Card>
-            <Title>{sessionEmail ? "Listo para continuar" : "Iniciar sesión"}</Title>
-            <Subtitle>
-              {sessionEmail
-                ? "Usa el menú superior para Reporte, Mis estadísticas, Público, etc."
-                : "Solo se permite iniciar sesión con Google."}
-            </Subtitle>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs text-white/60 mb-1">Desde</div>
+                  <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+                </div>
+                <div>
+                  <div className="text-xs text-white/60 mb-1">Hasta</div>
+                  <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+                </div>
+              </div>
 
-            {!sessionEmail ? (
-              <div className="mt-5 grid gap-4">
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/75">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck size={16} className="opacity-80" />
-                    <span className="font-medium text-white">Acceso seguro</span>
-                  </div>
-                  <div className="mt-1 text-xs text-white/60">
-                    Tu cuenta queda registrada automáticamente como <b>Joven</b>.
-                  </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button className="bg-white/10 text-white border border-white/10 hover:bg-white/15" onClick={() => { setFrom(minusDays(today, 7)); setTo(today); }}>
+                  7 días
+                </Button>
+                <Button className="bg-white/10 text-white border border-white/10 hover:bg-white/15" onClick={() => { setFrom(minusDays(today, 30)); setTo(today); }}>
+                  30 días
+                </Button>
+                <Button className="bg-white/10 text-white border border-white/10 hover:bg-white/15" onClick={() => { setFrom(startOfMonth(today)); setTo(today); }}>
+                  Mes
+                </Button>
+                <Button className="bg-white/10 text-white border border-white/10 hover:bg-white/15" onClick={load} disabled={loading}>
+                  <RefreshCw size={16} className={loading ? "animate-spin mr-2" : "mr-2"} />
+                  Actualizar
+                </Button>
+              </div>
+            </Card>
+          </div>
+
+          {!restricted && (
+            <>
+              <Card>
+                <div className="text-sm font-semibold mb-3">Resumen del rango</div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <Stat label="Capítulos" value={fmtMinutes(totals.bible)} />
+                  <Stat label="Oración" value={fmtMinutes(totals.prayer)} />
+                  <Stat label="Reportes" value={totals.reports} />
+                </div>
+              </Card>
+
+              <Card>
+                <div className="text-sm font-semibold mb-1">Tendencia semanal</div>
+                <Subtitle>Agrupado por semana (lunes).</Subtitle>
+                <div className="mt-4">
+                  {trend.length < 2 ? (
+                    <div className="text-sm text-white/70">No hay suficientes datos para mostrar la tendencia.</div>
+                  ) : (
+                    <TrendLine data={trend.map(t => ({
+                      label: t.label,
+                      lectura: t.bible,
+                      oracion: t.prayer,
+                    }))} />
+                  )}
+                </div>
+              </Card>
+
+              <Card>
+                <div className="text-sm font-semibold mb-1">Historial</div>
+                <Subtitle>Reportes del rango seleccionado.</Subtitle>
+                <div className="mt-4 overflow-auto">
+                  <table className="w-full text-sm">
+                    <thead className="text-white/70">
+                      <tr className="border-b border-white/10">
+                        <th className="text-left py-2 pr-3">Fecha</th>
+                        <th className="text-left py-2 pr-3">Capítulos</th>
+                        <th className="text-left py-2 pr-3">Oración</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((r) => (
+                        <tr
+                          key={r.report_date}
+                          onClick={() => setSelected(r)}
+                          className="border-b border-white/5 hover:bg-white/5 cursor-pointer"
+                        >
+                          <td className="py-2 pr-3">{r.report_date}</td>
+                          <td className="py-2 pr-3">{fmtMinutes(Number(r.bible_minutes ?? 0))}</td>
+                          <td className="py-2 pr-3">{fmtMinutes(Number(r.prayer_minutes ?? 0))}</td>
+                        </tr>
+                      ))}
+                      {rows.length === 0 && (
+                        <tr>
+                          <td className="py-3 text-white/70" colSpan={3}>No hay reportes en este rango.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
 
-                <Button type="button" onClick={signInGoogle} disabled={busy} className="w-full justify-center py-3 text-base">
-                  {busy ? "Conectando…" : "Entrar con Google"}
-                  <ArrowRight size={18} />
-                </Button>
+                {selected && (
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold">Reporte del {selected.report_date}</div>
+                        <div className="text-xs text-white/60 mt-1">Detalles del reporte (caps/temas si aplica).</div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        className="!px-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelected(null);
+                        }}
+                      >
+                        <X size={16} />
+                      </Button>
+                    </div>
 
-                {msg && (
-                  <p className={msg.startsWith("✅") ? "text-sm text-green-300" : "text-sm text-red-300"}>
-                    {msg}
-                  </p>
+                    <div className="mt-3 grid gap-3 md:grid-cols-3">
+                      <Stat label="Capítulos" value={fmtMinutes(Number(selected.bible_minutes ?? 0))} />
+                      <Stat label="Oración" value={fmtMinutes(Number(selected.prayer_minutes ?? 0))} />
+                      <Stat
+                        label="Caps"
+                        value={
+                          selected.chapters_count === null || selected.chapters_count === undefined
+                            ? "—"
+                            : String(selected.chapters_count)
+                        }
+                      />
+                    </div>
+
+                    <div className="mt-3 grid gap-2">
+                      <div className="text-xs text-white/60">Capítulos:</div>
+                      <div className="text-sm whitespace-pre-wrap">{selected.bible_chapters?.trim() ? selected.bible_chapters : "—"}</div>
+                      <div className="text-xs text-white/60 mt-2">Tema de oración:</div>
+                      <div className="text-sm whitespace-pre-wrap">{selected.prayer_topic?.trim() ? selected.prayer_topic : "—"}</div>
+                    </div>
+                  </div>
                 )}
-              </div>
-            ) : (
-              <div className="mt-5 text-sm text-white/70">
-                Navega con el menú superior.
-              </div>
-            )}
-          </Card>
+              </Card>
+            </>
+          )}
+
+          {loading && <div className="text-sm text-white/70">Cargando…</div>}
         </div>
       </PageFade>
     </Container>

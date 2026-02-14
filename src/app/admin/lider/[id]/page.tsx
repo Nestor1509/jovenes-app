@@ -26,6 +26,12 @@ function formatearMinutos(min: number) {
   if (m === 0) return `${h} h`;
   return `${h} h ${m} min`;
 }
+
+
+function formatearCapitulos(v: any) {
+  const n = Math.max(0, Math.floor(Number(v ?? 0)));
+  return n.toLocaleString("es-CO");
+}
 function inicioSemana(dateISO: string) {
   const d = new Date(dateISO + "T00:00:00");
   const day = d.getDay();
@@ -186,7 +192,7 @@ export default function AdminLeaderDetailPage() {
               <div className="text-sm font-semibold">Resumen del rango</div>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <Stat label="Lectura" value={formatearMinutos(totals.bible)} />
+              <Stat label="Capítulos" value={formatearCapitulos(totals.bible)} />
               <Stat label="Oración" value={formatearMinutos(totals.prayer)} />
               <Stat label="Reportes" value={totals.reports} />
             </div>

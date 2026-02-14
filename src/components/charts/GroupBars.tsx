@@ -1,101 +1,104 @@
 "use client";
 
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 
 type Item = {
   name: string;
-  lectura: number; // capítulos
-  oracion: number; // minutos
+  lectura: number;   // capítulos
+  oracion: number;   // minutos
 };
 
-function fmtDurationTick(v: number) {
-  const n = Math.max(0, Number(v || 0));
-  if (n < 60) return `${Math.round(n)}m`;
-  const h = n / 60;
-  if (Math.abs(h - Math.round(h)) < 1e-6) return `${Math.round(h)}h`;
-  return `${h.toFixed(1)}h`;
-}
-
-function niceMax(dataMax: number) {
-  const m = Math.max(0, Number(dataMax || 0));
-  const step = m <= 60 ? 10 : m <= 180 ? 30 : 60;
-  return Math.ceil(m / step) * step;
-}
-
-function fmt(min: number) {
-  const t = Math.max(0, Math.floor(min || 0));
-  const h = Math.floor(t / 60);
-  const m = t % 60;
+function formatMinutes(min: number) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
   if (h <= 0) return `${m} min`;
-  if (m === 0) return `${h} h`;
+  if (m <= 0) return `${h} h`;
   return `${h} h ${m} min`;
 }
 
+function niceMaxCount(v: number) {
+  if (!v || v <= 0) return 5;
+  return Math.ceil(v / 5) * 5;
+}
+
+function niceMaxMinutes(v: number) {
+  if (!v || v <= 0) return 60;
+  return Math.ceil(v / 60) * 60;
+}
+
 export default function GroupBars({ data }: { data: Item[] }) {
-  const max = niceMax(
-    Math.max(
-      ...data.map((d) => Math.max(Number(d.lectura || 0), Number(d.oracion || 0)))
-    )
+  const maxCh = niceMaxCount(
+    Math.max(...data.map((d) => Number(d.lectura ?? 0)))
+  );
+
+  const maxMin = niceMaxMinutes(
+    Math.max(...data.map((d) => Number(d.oracion ?? 0)))
   );
 
   return (
-    <div className="w-full" style={{ height: 288 }}>
-      <ResponsiveContainer width="100%" height="100%" minHeight={288}>
-        <BarChart data={data} margin={{ top: 10, right: 16, left: 0, bottom: 22 }}>
-          <defs>
-            <linearGradient id="gb_read" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="rgba(245,158,11,0.95)" />
-              <stop offset="100%" stopColor="rgba(245,158,11,0.25)" />
-            </linearGradient>
-            <linearGradient id="gb_pray" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="rgba(99,102,241,0.95)" />
-              <stop offset="100%" stopColor="rgba(99,102,241,0.25)" />
-            </linearGradient>
-          </defs>
+    <div style={{ width: "100%", height: 360 }}>
+      <ResponsiveContainer>
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+          <XAxis dataKey="name" />
 
-          <XAxis
-            dataKey="name"
-            tick={{ fontSize: 12, fill: "rgba(255,255,255,0.75)" }}
-            tickLine={false}
-            axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
-            interval="preserveStartEnd"
-            minTickGap={10}
-            height={36}
-          />
+          {/* Eje izquierdo → Capítulos */}
           <YAxis
-            domain={[0, max || 0]}
-            tickFormatter={fmtDurationTick}
-            tick={{ fontSize: 12, fill: "rgba(255,255,255,0.65)" }}
-            tickLine={false}
-            axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
-            width={40}
-          />
-          <Tooltip
-            cursor={{ fill: "rgba(255,255,255,0.06)" }}
-            contentStyle={{
-              background: "rgba(10,10,12,0.80)",
-              border: "1px solid rgba(255,255,255,0.10)",
-              borderRadius: 14,
-              backdropFilter: "blur(10px)",
-              color: "white",
+            yAxisId="left"
+            domain={[0, maxCh]}
+            label={{
+              value: "Capítulos",
+              angle: -90,
+              position: "insideLeft",
             }}
-            labelStyle={{ color: "rgba(255,255,255,0.85)" }}
-            formatter={(value: any, name) => [fmt(Number(value)), name === "lectura" ? "Capítulos" : "Oración"]}
           />
+
+          {/* Eje derecho → Oración */}
+          <YAxis
+            yAxisId="right"
+            orientation="right"
+            domain={[0, maxMin]}
+            tickFormatter={(v) => formatMinutes(Number(v))}
+            label={{
+              value: "Oración",
+              angle: 90,
+              position: "insideRight",
+            }}
+          />
+
+          <Tooltip
+            formatter={(value, name) => {
+              if (name === "Oración") {
+                return formatMinutes(Number(value));
+              }
+              return Number(value);
+            }}
+          />
+
+          <Legend />
+
           <Bar
+            yAxisId="left"
             dataKey="lectura"
             name="Capítulos"
-            fill="url(#gb_read)"
-            radius={[12, 12, 6, 6]}
-            maxBarSize={52}
-           isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
+            radius={[8, 8, 0, 0]}
+          />
+
           <Bar
+            yAxisId="right"
             dataKey="oracion"
             name="Oración"
-            fill="url(#gb_pray)"
-            radius={[12, 12, 6, 6]}
-            maxBarSize={52}
-           isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
+            radius={[8, 8, 0, 0]}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>

@@ -33,6 +33,12 @@ function formatearMinutos(min: any) {
   return `${h} h ${m} min`;
 }
 
+
+function formatearCapitulos(v: any) {
+  const n = Math.max(0, Math.floor(Number(v ?? 0)));
+  return n.toLocaleString("es-CO");
+}
+
 function iso(d: Date) {
   return d.toISOString().slice(0, 10);
 }
@@ -159,7 +165,7 @@ export default function AdminGeneralPage() {
         bible_minutes: s.bible,
         prayer_minutes: s.prayer,
         reports: s.reports,
-        total_minutes: s.bible + s.prayer,
+        total_minutes: s.prayer,
         last_report: s.last ?? null,
         group_name: p.groups?.name ?? "Sin grupo",
       };
@@ -169,7 +175,7 @@ export default function AdminGeneralPage() {
       ? base.filter((x) => `${x.name} ${x.group_name} ${x.role}`.toLowerCase().includes(q))
       : base;
 
-    filtered.sort((a, b) => b.total_minutes - a.total_minutes);
+    filtered.sort((a, b) => (b.prayer_minutes - a.prayer_minutes) || (b.bible_minutes - a.bible_minutes));
     return filtered;
   }, [perfiles, byUser, query]);
 
@@ -245,7 +251,7 @@ export default function AdminGeneralPage() {
             <div className="grid gap-3 md:grid-cols-4 mb-6">
               <Stat label="Personas (total)" value={totals.users} />
               <Stat label="Reportes" value={totals.reports} />
-              <Stat label="Lectura total" value={formatearMinutos(totals.bible)} />
+              <Stat label="Capítulos total" value={formatearCapitulos(totals.bible)} />
               <Stat label="Oración total" value={formatearMinutos(totals.prayer)} />
             </div>
 
@@ -269,7 +275,7 @@ export default function AdminGeneralPage() {
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <Stat label="Personas" value={roleTotals[r].users} />
                       <Stat label="Reportes" value={roleTotals[r].reports} />
-                      <Stat label="Lectura" value={formatearMinutos(roleTotals[r].bible)} />
+                      <Stat label="Lectura" value={formatearCapitulos(roleTotals[r].bible)} />
                       <Stat label="Oración" value={formatearMinutos(roleTotals[r].prayer)} />
                     </div>
                   </div>
@@ -282,7 +288,7 @@ export default function AdminGeneralPage() {
                 <div className="flex items-center gap-2">
                   <Trophy size={18} className="opacity-80" />
                   <div className="font-semibold">Ranking general</div>
-                  <span className="text-xs text-white/60">(por minutos totales)</span>
+                  <span className="text-xs text-white/60">(por oración total)</span>
                 </div>
 
                 <div className="w-full sm:w-80">
@@ -298,10 +304,9 @@ export default function AdminGeneralPage() {
                       <th className="text-left py-2 pr-3">Nombre</th>
                       <th className="text-left py-2 pr-3">Rol</th>
                       <th className="text-left py-2 pr-3">Grupo</th>
-                      <th className="text-right py-2 pr-3">Lectura</th>
+                      <th className="text-right py-2 pr-3">Capítulos</th>
                       <th className="text-right py-2 pr-3">Oración</th>
                       <th className="text-right py-2 pr-3">Reportes</th>
-                      <th className="text-right py-2 pr-3">Total</th>
                       <th className="text-right py-2 pr-0">Detalle</th>
                     </tr>
                   </thead>
@@ -312,10 +317,9 @@ export default function AdminGeneralPage() {
                         <td className="py-2 pr-3 font-medium">{r.name}</td>
                         <td className="py-2 pr-3 text-white/80">{roleLabel(r.role)}</td>
                         <td className="py-2 pr-3 text-white/80">{r.group_name}</td>
-                        <td className="py-2 pr-3 text-right">{formatearMinutos(r.bible_minutes)}</td>
+                        <td className="py-2 pr-3 text-right">{formatearCapitulos(r.bible_minutes)}</td>
                         <td className="py-2 pr-3 text-right">{formatearMinutos(r.prayer_minutes)}</td>
                         <td className="py-2 pr-3 text-right">{r.reports}</td>
-                        <td className="py-2 pr-3 text-right font-semibold">{formatearMinutos(r.total_minutes)}</td>
                         <td className="py-2 text-right">
                           <Link
                             className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 transition"

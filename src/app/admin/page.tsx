@@ -64,6 +64,12 @@ function formatearMinutos(min: any) {
   return `${h} h ${m} min`;
 }
 
+
+function formatearCapitulos(v: any) {
+  const n = Math.max(0, Math.floor(Number(v ?? 0)));
+  return n.toLocaleString("es-CO");
+}
+
 export default function AdminPage() {
   const { loading: authLoading, session, profile, error: authError } = useMyProfile();
 
@@ -131,7 +137,7 @@ export default function AdminPage() {
   const topTitle = useMemo(() => {
     const who = whoMode === "youth" ? "Jóvenes" : "Líderes";
     const metric =
-      topMetric === "bible" ? "Lectura" : topMetric === "prayer" ? "Oración" : "Reportes";
+      topMetric === "bible" ? "Capítulos" : topMetric === "prayer" ? "Oración" : "Reportes";
     return `Top 10 ${who} — ${metric}`;
   }, [whoMode, topMetric]);
 
@@ -500,7 +506,7 @@ export default function AdminPage() {
               <>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <Stat label={whoMode === "youth" ? "Activos (jóvenes)" : "Activos (líderes)"} value={globalWeek.active} />
-                  <Stat label="Lectura total" value={formatearMinutos(globalWeek.bible)} />
+                  <Stat label="Capítulos total" value={formatearCapitulos(globalWeek.bible)} />
                   <Stat label="Oración total" value={formatearMinutos(globalWeek.prayer)} />
                   <Stat label="Reportes" value={globalWeek.reports} />
                 </div>
@@ -525,7 +531,7 @@ export default function AdminPage() {
               <div className="w-full sm:w-56">
                 <div className="text-xs text-white/60 mb-1">Ordenar Top 10 por</div>
                 <Select value={topMetric} onChange={(e) => setTopMetric(e.target.value as any)}>
-                  <option value="bible">Lectura</option>
+                  <option value="bible">Capítulos</option>
                   <option value="prayer">Oración</option>
                   <option value="reports">Reportes</option>
                 </Select>
@@ -560,7 +566,7 @@ export default function AdminPage() {
                   <tr className="border-b border-white/10">
                     <th className="text-left py-3 pr-3">Nombre</th>
                     <th className="text-left py-3 pr-3">Grupo</th>
-                    <th className="text-left py-3 pr-3">Lectura</th>
+                    <th className="text-left py-3 pr-3">Capítulos</th>
                     <th className="text-left py-3 pr-3">Oración</th>
                     <th className="text-left py-3 pr-3">Reportes</th>
                   </tr>
@@ -570,7 +576,7 @@ export default function AdminPage() {
                     <tr key={p.user_id} className="border-b border-white/5">
                       <td className="py-3 pr-3 font-medium">{p.name}</td>
                       <td className="py-3 pr-3">{p.group_id ? groupMap.get(p.group_id) ?? "—" : "—"}</td>
-                      <td className="py-3 pr-3">{formatearMinutos(p.total_bible_minutes)}</td>
+                      <td className="py-3 pr-3">{formatearCapitulos(p.total_bible_minutes)}</td>
                       <td className="py-3 pr-3">{formatearMinutos(p.total_prayer_minutes)}</td>
                       <td className="py-3 pr-3">{Number(p.total_reports ?? 0)}</td>
                     </tr>

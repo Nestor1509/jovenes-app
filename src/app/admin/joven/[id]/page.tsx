@@ -28,6 +28,12 @@ function formatearMinutos(min: number) {
   return `${h} h ${m} min`;
 }
 
+
+function formatearCapitulos(v: any) {
+  const n = Math.max(0, Math.floor(Number(v ?? 0)));
+  return n.toLocaleString("es-CO");
+}
+
 function inicioSemana(dateISO: string) {
   const d = new Date(dateISO + "T00:00:00");
   const day = d.getDay(); // 0 domingo
@@ -275,7 +281,7 @@ export default function PersonDetailPage() {
               <div className="text-sm font-semibold">Resumen del rango</div>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <Stat label="Lectura" value={formatearMinutos(totals.bible)} />
+              <Stat label="Capítulos" value={formatearCapitulos(totals.bible)} />
               <Stat label="Oración" value={formatearMinutos(totals.prayer)} />
               <Stat label="Reportes" value={totals.reports} />
             </div>
@@ -308,7 +314,7 @@ export default function PersonDetailPage() {
                 return (
                   <div
                     key={d}
-                    title={has ? `${d} • Lectura: ${bible}m • Oración: ${prayer}m` : d}
+                    title={has ? `${d} • Capítulos: ${bible}m • Oración: ${prayer}m` : d}
                     onClick={() => {
                       if (rep) setSelected(rep);
                     }}
@@ -337,7 +343,7 @@ export default function PersonDetailPage() {
                 </div>
 
                 <div className="mt-3 grid gap-3 md:grid-cols-3">
-                  <Stat label="Lectura" value={formatearMinutos(Number(selected.bible_minutes ?? 0))} />
+                  <Stat label="Capítulos" value={formatearCapitulos(Number(selected.bible_minutes ?? 0))} />
                   <Stat label="Oración" value={formatearMinutos(Number(selected.prayer_minutes ?? 0))} />
                   <Stat
                     label="Caps"
@@ -350,7 +356,7 @@ export default function PersonDetailPage() {
                 </div>
 
                 <div className="mt-3 grid gap-2">
-                  <div className="text-xs text-white/60">Lectura (capítulos):</div>
+                  <div className="text-xs text-white/60">Capítulos (capítulos):</div>
                   <div className="text-sm whitespace-pre-wrap">{selected.bible_chapters?.trim() ? selected.bible_chapters : "—"}</div>
                   <div className="text-xs text-white/60 mt-2">Tema de oración:</div>
                   <div className="text-sm whitespace-pre-wrap">{selected.prayer_topic?.trim() ? selected.prayer_topic : "—"}</div>

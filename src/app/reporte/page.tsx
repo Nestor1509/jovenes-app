@@ -132,8 +132,8 @@ export default function ReportePage() {
     setPrayerM(p.m === 0 ? "" : String(p.m));
 
     // Capítulos (requerido)
-    const cc = (existing?.chapters_count ?? existing?.bible_minutes);
-    setChaptersCount(cc === null || cc === undefined || !Number.isFinite(Number(cc)) ? "" : String(cc));
+    const cc = (existing?.chapters_count ?? existing?.bible_minutes ?? 0);
+    setChaptersCount(!Number.isFinite(Number(cc)) ? "" : String(cc));
   }
 
   async function save() {
@@ -199,16 +199,19 @@ export default function ReportePage() {
             </span>
           </div>
 
-          {existing?.chapters_count !== null && existing?.chapters_count !== undefined ? (
-            <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/70">Capítulos leídos</span>
-                  <span className="font-semibold text-white">{existing.chapters_count}</span>
+          {(() => {
+            const chapters = (existing?.chapters_count ?? existing?.bible_minutes ?? 0);
+            return (
+              <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-white/70">Capítulos leídos</span>
+                    <span className="font-semibold text-white">{chapters}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : null}
+            );
+          })()}
         </div>
 
         {allowEdit ? (

@@ -55,25 +55,19 @@ function traducirError(msg: string) {
   return "Ocurrió un error.";
 }
 
-const formatearCapitulos = (value?: number | null) => {
-  const n = Number(value ?? 0);
-  if (!Number.isFinite(n)) return "0";
-  return Math.round(n).toLocaleString("es-CO");
-};
-
 function formatearMinutos(min: any) {
   const t = Math.max(0, Math.floor(Number(min ?? 0)));
   const h = Math.floor(t / 60);
   const m = t % 60;
-  if (h <= 0) return `${m}
+  if (h <= 0) return `${m} min`;
+  if (m === 0) return `${h} h`;
+  return `${h} h ${m} min`;
+}
+
 
 function formatearCapitulos(v: any) {
   const n = Math.floor(Number(v ?? 0));
   return Number.isFinite(n) ? String(Math.max(0, n)) : "0";
-}
- min`;
-  if (m === 0) return `${h} h`;
-  return `${h} h ${m} min`;
 }
 
 export default function AdminPage() {

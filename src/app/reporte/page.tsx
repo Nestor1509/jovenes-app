@@ -331,7 +331,7 @@ export default function ReportePage() {
                 <Input type="date" value={today} disabled className="max-w-xs opacity-70 cursor-not-allowed" />
 
                 <div className="text-xs text-white/50">
-                  Solo puedes reportar el día de hoy. (La base de datos también lo valida.)
+                  Solo puedes reportar el día de hoy.
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
@@ -428,10 +428,6 @@ export default function ReportePage() {
                       {msg}
                     </span>
                   )}
-                </div>
-
-                <div className="text-xs text-white/50">
-                  Tip: si borras un campo, se guarda como 0. (Capítulos es requerido.)
                 </div>
               </div>
             )}

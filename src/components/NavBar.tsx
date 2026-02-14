@@ -113,7 +113,6 @@ export default function NavBar() {
     { href: "/perfil", label: "Perfil", icon: Users, show: (_r, has) => !!has },
     { href: "/lider", label: "Líder", icon: Users, show: (r, has) => !!has && (r === "leader" || r === "admin") },
     { href: "/admin", label: "Admin", icon: Shield, show: (r, has) => !!has && r === "admin" },
-    { href: "/admin/historial", label: "Historial", icon: Shield, show: (r, has) => !!has && r === "admin" },
     { href: "/admin/general", label: "Todas", icon: BarChart3, show: (r, has) => !!has && r === "admin" },
   ];
 

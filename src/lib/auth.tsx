@@ -134,34 +134,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // 1) initial load
-    refresh();
+  // 1) initial load
+  refresh();
 
-    // 2) keep in sync without refetching on every page
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, sess) => {
-      setSession(sess);
-      if (!sess?.user?.id) {
+  // 2) keep in sync without refetching on every page
+  const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, sess) => {
+    setSession(sess);
+    if (!sess?.user?.id) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const p = await ensureProfile(sess.user as SbUser);
+      setProfile(p);
+    } catch (e: any) {
+      setProfile(null);
+      setError(e?.message ? String(e.message) : "No se pudo cargar tu perfil.");
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  // ✅ 3) Re-sync when tab becomes active again (fix "needs reload")
+  const onFocus = async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const s = data?.session ?? null;
+
+      if (!s?.user?.id) {
+        setSession(null);
         setProfile(null);
-        setLoading(false);
         return;
       }
-      setLoading(true);
-      setError("");
-      try {
-        const p = await ensureProfile(sess.user as SbUser);
-        setProfile(p);
-      } catch (e: any) {
-        setProfile(null);
-        setError(e?.message ? String(e.message) : "No se pudo cargar tu perfil.");
-      } finally {
-        setLoading(false);
-      }
-    });
 
-    return () => {
-      sub.subscription.unsubscribe();
-    };
-  }, [refresh, ensureProfile]);
+      // opcional: refrescar solo si expira pronto (evita parpadeo de loading)
+      const exp = (s.expires_at ?? 0) * 1000;
+      const soon = exp - Date.now() < 2 * 60 * 1000; // 2 minutos
+
+      if (soon) await refresh();
+      else setSession(s); // al menos rehidrata el estado
+    } catch {
+      // silencioso
+    }
+  };
+
+  const onVisible = () => {
+    if (document.visibilityState === "visible") onFocus();
+  };
+
+  window.addEventListener("focus", onFocus);
+  document.addEventListener("visibilitychange", onVisible);
+
+  return () => {
+    sub.subscription.unsubscribe();
+    window.removeEventListener("focus", onFocus);
+    document.removeEventListener("visibilitychange", onVisible);
+  };
+}, [refresh, ensureProfile]);
+
 
   const value = useMemo<AuthCtx>(
     () => ({ loading, session, profile, error, refresh, signOut }),

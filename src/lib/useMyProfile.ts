@@ -10,3 +10,4 @@ export function useMyProfile() {
   const { loading, session, profile, error, refresh } = useAuth();
   return { loading, session: session as Session | null, profile, error, refresh };
 }
+

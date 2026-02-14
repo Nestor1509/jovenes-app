@@ -6,12 +6,16 @@ export const metadata = {
   description: "Casa de Dios Cruzada Cristiana — Reporte de lectura bíblica y oración",
 };
 
+import { AuthProvider } from "@/lib/auth";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-950 to-black text-white">
-        <AppShell>{children}</AppShell>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
 }
+
+

@@ -33,15 +33,26 @@ function fromMinutes(total: number) {
 
 function traducirError(msg: string) {
   const m = (msg ?? "").toLowerCase();
-  if (m.includes("jwt")) return "Tu sesión expiró. Vuelve a iniciar sesión.";
+
+  if (m.includes("jwt") || m.includes("token")) return "Tu sesión expiró. Vuelve a iniciar sesión.";
+  if (m.includes("row-level security") || m.includes("rls") || m.includes("security policy"))
+    return "No tienes permisos para guardar/editar el reporte (políticas de seguridad).";
   if (m.includes("permission denied") || m.includes("not allowed"))
     return "No tienes permisos para realizar esta acción.";
   if (m.includes("duplicate key") || m.includes("unique"))
     return "Ya existe un reporte para esa fecha.";
+  if (m.includes("check constraint") || m.includes("violates check constraint"))
+    return "Los datos no cumplen una validación del sistema. Revisa los valores e intenta de nuevo.";
+  if (m.includes("not-null") || m.includes("null value") || m.includes("cannot be null"))
+    return "Falta un campo requerido. Revisa los valores e intenta de nuevo.";
+  if (m.includes("does not exist") && m.includes("column"))
+    return "Tu base de datos no tiene el campo actualizado. Avísame para ajustar compatibilidad.";
   if (m.includes("stack depth"))
     return "Error de seguridad/roles. Recarga la página (si continúa, avísame).";
+
   return "Ocurrió un error. Intenta de nuevo.";
 }
+
 
 type ExistingReport = {
   prayer_minutes: number;
@@ -166,7 +177,11 @@ export default function ReportePage() {
     );
 
     if (error) {
-      setMsg(traducirError(error.message));
+      console.error("Error saving report:", error);
+      const friendly = traducirError(error.message);
+      // Si el mensaje es muy genérico, mostramos un hint pequeño para debug.
+      const hint = error.message ? ` (${error.message})` : "";
+      setMsg(friendly + hint);
       return;
     }
 

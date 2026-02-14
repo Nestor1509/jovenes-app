@@ -18,7 +18,7 @@ type WeekStats = {
   group_id: string;
   week_start: string;
   active_youth: number;
-  total_bible_minutes: number;
+  total_bible_minutes: number; // ahora representa "capítulos"
   total_prayer_minutes: number;
   total_reports: number;
 };
@@ -27,7 +27,7 @@ type MonthStats = {
   group_id: string;
   month_start: string;
   active_youth: number;
-  total_bible_minutes: number;
+  total_bible_minutes: number; // ahora representa "capítulos"
   total_prayer_minutes: number;
   total_reports: number;
 };
@@ -36,10 +36,14 @@ type YouthTotals = {
   user_id: string;
   name: string;
   group_id: string;
-  total_bible_minutes: number;
+  total_bible_minutes: number; // ahora representa "capítulos"
   total_prayer_minutes: number;
   total_reports: number;
 };
+
+function fmtCaps(v: any) {
+  return `${Math.max(0, Math.floor(Number(v ?? 0)))}`;
+}
 
 function formatearMinutos(min: any) {
   const t = Math.max(0, Math.floor(Number(min ?? 0)));
@@ -276,6 +280,7 @@ export default function LiderPage() {
           : topMode === "prayer"
           ? Number(y.total_prayer_minutes ?? 0)
           : Number(y.total_reports ?? 0),
+      unit: topMode === "bible" ? "chapters" : topMode === "prayer" ? "minutes" : "reports",
     }));
   }, [youth, topMode]);
 
@@ -366,7 +371,7 @@ export default function LiderPage() {
                 {weekStats ? (
                   <div className="grid gap-2">
                     <Stat label="Jóvenes activos" value={Number(weekStats.active_youth ?? 0)} />
-                    <Stat label="Lectura total" value={formatearMinutos(weekStats.total_bible_minutes)} />
+                    <Stat label="Capítulos" value={fmtCaps(weekStats.total_bible_minutes)} />
                     <Stat label="Oración total" value={formatearMinutos(weekStats.total_prayer_minutes)} />
                     <Stat label="Reportes" value={Number(weekStats.total_reports ?? 0)} />
                   </div>
@@ -401,7 +406,7 @@ export default function LiderPage() {
                 {monthStats ? (
                   <div className="grid gap-2">
                     <Stat label="Jóvenes activos" value={Number(monthStats.active_youth ?? 0)} />
-                    <Stat label="Lectura total" value={formatearMinutos(monthStats.total_bible_minutes)} />
+                    <Stat label="Capítulos" value={fmtCaps(monthStats.total_bible_minutes)} />
                     <Stat label="Oración total" value={formatearMinutos(monthStats.total_prayer_minutes)} />
                     <Stat label="Reportes" value={Number(monthStats.total_reports ?? 0)} />
                   </div>
@@ -425,7 +430,7 @@ export default function LiderPage() {
               <div className="w-full sm:w-64">
                 <div className="text-xs text-white/60 mb-1">Ordenar por</div>
                 <Select value={topMode} onChange={(e) => setTopMode(e.target.value as any)}>
-                  <option value="bible">Lectura (minutos)</option>
+                  <option value="bible">Capítulos</option>
                   <option value="prayer">Oración (minutos)</option>
                   <option value="reports">Reportes (cantidad)</option>
                 </Select>
@@ -457,7 +462,7 @@ export default function LiderPage() {
                 <thead className="text-white/70">
                   <tr className="border-b border-white/10">
                     <th className="text-left py-3 pr-3">Nombre</th>
-                    <th className="text-left py-3 pr-3">Lectura</th>
+                    <th className="text-left py-3 pr-3">Capítulos</th>
                     <th className="text-left py-3 pr-3">Oración</th>
                     <th className="text-left py-3 pr-3">Detalle</th>
                     <th className="text-left py-3 pr-3">Reportes</th>
@@ -467,7 +472,7 @@ export default function LiderPage() {
                   {youth.map((y) => (
                     <tr key={y.user_id} className="border-b border-white/5">
                       <td className="py-3 pr-3 font-medium">{y.name}</td>
-                      <td className="py-3 pr-3">{formatearMinutos(y.total_bible_minutes)}</td>
+                      <td className="py-3 pr-3">{fmtCaps(y.total_bible_minutes)}</td>
                       <td className="py-3 pr-3">{formatearMinutos(y.total_prayer_minutes)}</td>
                       
 <td className="py-3 pr-3">

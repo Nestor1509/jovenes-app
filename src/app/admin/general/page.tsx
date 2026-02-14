@@ -33,6 +33,10 @@ function formatearMinutos(min: any) {
   return `${h} h ${m} min`;
 }
 
+function fmtCaps(v: any) {
+  return `${Math.max(0, Math.floor(Number(v ?? 0)))}`;
+}
+
 function iso(d: Date) {
   return d.toISOString().slice(0, 10);
 }
@@ -245,7 +249,7 @@ export default function AdminGeneralPage() {
             <div className="grid gap-3 md:grid-cols-4 mb-6">
               <Stat label="Personas (total)" value={totals.users} />
               <Stat label="Reportes" value={totals.reports} />
-              <Stat label="Lectura total" value={formatearMinutos(totals.bible)} />
+              <Stat label="Capítulos" value={fmtCaps(totals.bible)} />
               <Stat label="Oración total" value={formatearMinutos(totals.prayer)} />
             </div>
 
@@ -269,7 +273,7 @@ export default function AdminGeneralPage() {
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <Stat label="Personas" value={roleTotals[r].users} />
                       <Stat label="Reportes" value={roleTotals[r].reports} />
-                      <Stat label="Lectura" value={formatearMinutos(roleTotals[r].bible)} />
+                      <Stat label="Capítulos" value={fmtCaps(roleTotals[r].bible)} />
                       <Stat label="Oración" value={formatearMinutos(roleTotals[r].prayer)} />
                     </div>
                   </div>
@@ -298,7 +302,7 @@ export default function AdminGeneralPage() {
                       <th className="text-left py-2 pr-3">Nombre</th>
                       <th className="text-left py-2 pr-3">Rol</th>
                       <th className="text-left py-2 pr-3">Grupo</th>
-                      <th className="text-right py-2 pr-3">Lectura</th>
+                      <th className="text-right py-2 pr-3">Capítulos</th>
                       <th className="text-right py-2 pr-3">Oración</th>
                       <th className="text-right py-2 pr-3">Reportes</th>
                       <th className="text-right py-2 pr-3">Total</th>
@@ -312,7 +316,7 @@ export default function AdminGeneralPage() {
                         <td className="py-2 pr-3 font-medium">{r.name}</td>
                         <td className="py-2 pr-3 text-white/80">{roleLabel(r.role)}</td>
                         <td className="py-2 pr-3 text-white/80">{r.group_name}</td>
-                        <td className="py-2 pr-3 text-right">{formatearMinutos(r.bible_minutes)}</td>
+                        <td className="py-2 pr-3 text-right">{fmtCaps(r.bible_minutes)}</td>
                         <td className="py-2 pr-3 text-right">{formatearMinutos(r.prayer_minutes)}</td>
                         <td className="py-2 pr-3 text-right">{r.reports}</td>
                         <td className="py-2 pr-3 text-right font-semibold">{formatearMinutos(r.total_minutes)}</td>

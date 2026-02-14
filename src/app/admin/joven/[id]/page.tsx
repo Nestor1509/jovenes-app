@@ -28,6 +28,10 @@ function formatearMinutos(min: number) {
   return `${h} h ${m} min`;
 }
 
+function fmtCaps(v: any) {
+  return `${Math.max(0, Math.floor(Number(v ?? 0)))}`;
+}
+
 function inicioSemana(dateISO: string) {
   const d = new Date(dateISO + "T00:00:00");
   const day = d.getDay(); // 0 domingo
@@ -275,7 +279,7 @@ export default function PersonDetailPage() {
               <div className="text-sm font-semibold">Resumen del rango</div>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <Stat label="Lectura" value={formatearMinutos(totals.bible)} />
+              <Stat label="Capítulos" value={fmtCaps(totals.bible)} />
               <Stat label="Oración" value={formatearMinutos(totals.prayer)} />
               <Stat label="Reportes" value={totals.reports} />
             </div>
@@ -308,7 +312,7 @@ export default function PersonDetailPage() {
                 return (
                   <div
                     key={d}
-                    title={has ? `${d} • Lectura: ${bible}m • Oración: ${prayer}m` : d}
+                    title={has ? `${d} • Capítulos: ${fmtCaps(bible)} • Oración: ${prayer}m` : d}
                     onClick={() => {
                       if (rep) setSelected(rep);
                     }}
@@ -337,7 +341,7 @@ export default function PersonDetailPage() {
                 </div>
 
                 <div className="mt-3 grid gap-3 md:grid-cols-3">
-                  <Stat label="Lectura" value={formatearMinutos(Number(selected.bible_minutes ?? 0))} />
+                  <Stat label="Capítulos" value={fmtCaps(Number(selected.bible_minutes ?? 0))} />
                   <Stat label="Oración" value={formatearMinutos(Number(selected.prayer_minutes ?? 0))} />
                   <Stat
                     label="Caps"

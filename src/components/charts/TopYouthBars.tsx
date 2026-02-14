@@ -7,6 +7,7 @@ type Item = {
   fullName?: string;
   value: number; // minutos o cantidad
   isCount?: boolean;
+  unit?: "minutes" | "reports" | "chapters";
 };
 
 function fmtDurationTick(v: number, isCount?: boolean) {
@@ -16,6 +17,10 @@ function fmtDurationTick(v: number, isCount?: boolean) {
   const h = n / 60;
   if (Math.abs(h - Math.round(h)) < 1e-6) return `${Math.round(h)}h`;
   return `${h.toFixed(1)}h`;
+}
+
+function fmtChapters(v: number) {
+  return `${Math.max(0, Math.floor(Number(v || 0)))}`;
 }
 
 function niceMax(dataMax: number) {
@@ -35,7 +40,9 @@ function fmtValue(v: number, isCount?: boolean) {
 }
 
 export default function TopYouthBars({ data }: { data: Item[] }) {
-  const isCount = !!data?.[0]?.isCount;
+  const unit = data?.[0]?.unit;
+  const isCount = unit === "reports" || !!data?.[0]?.isCount;
+  const isChapters = unit === "chapters";
   const max = niceMax(Math.max(...data.map((d) => Number(d.value || 0))));
 
   return (
@@ -60,7 +67,7 @@ export default function TopYouthBars({ data }: { data: Item[] }) {
           />
           <YAxis
             domain={[0, max || 0]}
-            tickFormatter={(v) => fmtDurationTick(Number(v), isCount)}
+            tickFormatter={(v) => (isChapters ? fmtChapters(Number(v)) : fmtDurationTick(Number(v), isCount))}
             tick={{ fontSize: 12, fill: "rgba(255,255,255,0.65)" }}
             tickLine={false}
             axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
@@ -79,7 +86,11 @@ export default function TopYouthBars({ data }: { data: Item[] }) {
               const item = payload?.[0]?.payload as Item | undefined;
               return item?.fullName || item?.name || "";
             }}
-            formatter={(value: any) => [fmtValue(Number(value), isCount), isCount ? "Reportes" : "Minutos"]}
+            formatter={(value: any) =>
+              isChapters
+                ? [fmtChapters(Number(value)), "Capítulos"]
+                : [fmtValue(Number(value), isCount), isCount ? "Reportes" : "Minutos"]
+            }
           />
 
           <Bar dataKey="value" fill="url(#tyb_value)" radius={[12, 12, 6, 6]} maxBarSize={48}  isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />

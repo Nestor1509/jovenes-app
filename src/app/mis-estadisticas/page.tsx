@@ -10,14 +10,14 @@ const TrendLine = dynamic(() => import("@/components/charts/TrendLine"), { ssr: 
 import { ChartCard } from "@/components/charts/ChartCard";
 
 type Totales = {
-  total_bible_minutes: number;
+  total_chapters: number;
   total_prayer_minutes: number;
   total_reports: number;
 };
 
 type ReportRow = {
   report_date: string; // YYYY-MM-DD
-  bible_minutes: number | null;
+  chapters_count: number | null;
   prayer_minutes: number | null;
 };
 
@@ -54,15 +54,15 @@ function inicioMesISO(dateISO: string) {
 }
 
 function sumar(rows: ReportRow[]): Totales {
-  let b = 0,
+  let ch = 0,
     o = 0,
     c = 0;
   for (const r of rows) {
-    b += Number(r.bible_minutes ?? 0);
+    ch += Number(r.chapters_count ?? 0);
     o += Number(r.prayer_minutes ?? 0);
     c += 1;
   }
-  return { total_bible_minutes: b, total_prayer_minutes: o, total_reports: c };
+  return { total_chapters: ch, total_prayer_minutes: o, total_reports: c };
 }
 
 export default function MisEstadisticasPage() {
@@ -73,9 +73,9 @@ export default function MisEstadisticasPage() {
   const [rol, setRol] = useState<string>("");
 
   const [reports, setReports] = useState<ReportRow[]>([]);
-  const [week, setWeek] = useState<Totales>({ total_bible_minutes: 0, total_prayer_minutes: 0, total_reports: 0 });
-  const [month, setMonth] = useState<Totales>({ total_bible_minutes: 0, total_prayer_minutes: 0, total_reports: 0 });
-  const [all, setAll] = useState<Totales>({ total_bible_minutes: 0, total_prayer_minutes: 0, total_reports: 0 });
+  const [week, setWeek] = useState<Totales>({ total_chapters: 0, total_prayer_minutes: 0, total_reports: 0 });
+  const [month, setMonth] = useState<Totales>({ total_chapters: 0, total_prayer_minutes: 0, total_reports: 0 });
+  const [all, setAll] = useState<Totales>({ total_chapters: 0, total_prayer_minutes: 0, total_reports: 0 });
 
   const today = useMemo(() => hoyISO(), []);
   const weekStart = useMemo(() => inicioSemanaISO(today), [today]);
@@ -112,7 +112,7 @@ export default function MisEstadisticasPage() {
       // Traemos los reportes del usuario (para totales + tendencia)
       const { data: rRows, error: rErr } = await supabase
         .from("reports")
-        .select("report_date, bible_minutes, prayer_minutes")
+        .select("report_date, chapters_count, prayer_minutes")
         .eq("user_id", userId)
         .order("report_date", { ascending: true });
 
@@ -141,7 +141,7 @@ export default function MisEstadisticasPage() {
     for (const r of reports) {
       const k = r.report_date.slice(0, 7); // YYYY-MM
       const cur = map.get(k) ?? { lectura: 0, oracion: 0 };
-      cur.lectura += Number(r.bible_minutes ?? 0);
+      cur.lectura += Number(r.chapters_count ?? 0);
       cur.oracion += Number(r.prayer_minutes ?? 0);
       map.set(k, cur);
     }
@@ -187,7 +187,7 @@ export default function MisEstadisticasPage() {
               <div className="text-sm font-medium mb-1">Semana</div>
               <div className="text-xs text-white/60 mb-4">Desde {weekStart}</div>
               <div className="grid gap-2">
-                <Stat label="Lectura" value={formatearMinutos(week.total_bible_minutes)} />
+                <Stat label="Capítulos" value={week.total_chapters} />
                 <Stat label="Oración" value={formatearMinutos(week.total_prayer_minutes)} />
                 <Stat label="Reportes" value={week.total_reports} />
               </div>
@@ -197,7 +197,7 @@ export default function MisEstadisticasPage() {
               <div className="text-sm font-medium mb-1">Mes</div>
               <div className="text-xs text-white/60 mb-4">Desde {monthStart}</div>
               <div className="grid gap-2">
-                <Stat label="Lectura" value={formatearMinutos(month.total_bible_minutes)} />
+                <Stat label="Capítulos" value={month.total_chapters} />
                 <Stat label="Oración" value={formatearMinutos(month.total_prayer_minutes)} />
                 <Stat label="Reportes" value={month.total_reports} />
               </div>
@@ -207,7 +207,7 @@ export default function MisEstadisticasPage() {
               <div className="text-sm font-medium mb-1">Histórico</div>
               <div className="text-xs text-white/60 mb-4">Todo el tiempo</div>
               <div className="grid gap-2">
-                <Stat label="Lectura" value={formatearMinutos(all.total_bible_minutes)} />
+                <Stat label="Capítulos" value={all.total_chapters} />
                 <Stat label="Oración" value={formatearMinutos(all.total_prayer_minutes)} />
                 <Stat label="Reportes" value={all.total_reports} />
               </div>
@@ -215,7 +215,7 @@ export default function MisEstadisticasPage() {
           </div>
 
           <div className="mt-2 grid grid-cols-1 gap-4">
-            <ChartCard title="Tendencia (mes a mes)" subtitle="Lectura bíblica y oración acumuladas por mes">
+            <ChartCard title="Tendencia (mes a mes)" subtitle="Capítulos leídos y oración acumuladas por mes">
               {trendData.length < 2 ? (
                 <EmptyState title="Aún no hay suficientes datos" description="Cuando tengas más reportes, verás tu tendencia mes a mes aquí." />
               ) : (

@@ -18,11 +18,25 @@ function iso(d: Date) {
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
+
+const formatearCapitulos = (value?: number | null) => {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return "0";
+  return Math.round(n).toLocaleString("es-CO");
+};
+
+
 function formatearMinutos(min: number) {
   const t = Math.max(0, Math.floor(Number(min || 0)));
   const h = Math.floor(t / 60);
   const m = t % 60;
-  if (h <= 0) return `${m} min`;
+  if (h <= 0) return `${m}
+
+function formatearCapitulos(v: any) {
+  const n = Math.floor(Number(v ?? 0));
+  return Number.isFinite(n) ? String(Math.max(0, n)) : "0";
+}
+ min`;
   if (m === 0) return `${h} h`;
   return `${h} h ${m} min`;
 }
@@ -186,7 +200,7 @@ export default function AdminLeaderDetailPage() {
               <div className="text-sm font-semibold">Resumen del rango</div>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <Stat label="Lectura" value={formatearMinutos(totals.bible)} />
+              <Stat label="Capítulos" value={formatearCapitulos(totals.bible)} />
               <Stat label="Oración" value={formatearMinutos(totals.prayer)} />
               <Stat label="Reportes" value={totals.reports} />
             </div>

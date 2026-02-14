@@ -46,6 +46,7 @@ function traducirError(msg: string) {
 type ExistingReport = {
   prayer_minutes: number;
   chapters_count?: number | null;
+  bible_minutes?: number | null; // legacy (capítulos)
 };
 
 type Mode = "loading" | "new" | "askEdit" | "editing" | "done" | "doneLocked";
@@ -92,7 +93,7 @@ export default function ReportePage() {
       try {
         const { data, error } = await supabase
           .from("reports")
-          .select("chapters_count, prayer_minutes")
+          .select("chapters_count, bible_minutes, prayer_minutes")
           .eq("user_id", session.user.id)
           .eq("report_date", dateKey)
           .maybeSingle();
@@ -104,7 +105,8 @@ export default function ReportePage() {
         }
 
         if (data) {
-          setExisting(data);
+          const chapters = (data as any).chapters_count ?? (data as any).bible_minutes ?? 0;
+          setExisting({ ...(data as any), chapters_count: chapters });
           setMode("askEdit");
         } else {
           setMode("new");
@@ -130,7 +132,7 @@ export default function ReportePage() {
     setPrayerM(p.m === 0 ? "" : String(p.m));
 
     // Capítulos (requerido)
-    const cc = existing?.chapters_count;
+    const cc = (existing?.chapters_count ?? existing?.bible_minutes);
     setChaptersCount(cc === null || cc === undefined || !Number.isFinite(Number(cc)) ? "" : String(cc));
   }
 
@@ -197,7 +199,7 @@ export default function ReportePage() {
             </span>
           </div>
 
-          {existing?.chapters_count ? (
+          {existing?.chapters_count !== null && existing?.chapters_count !== undefined ? (
             <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
               <div className="grid gap-2">
                 <div className="flex items-center justify-between gap-3">

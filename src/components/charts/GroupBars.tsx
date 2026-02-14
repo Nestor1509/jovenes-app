@@ -4,8 +4,8 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recha
 
 type Item = {
   name: string;
-  lectura_min: number;
-  oracion_min: number;
+  lectura: number; // capítulos
+  oracion: number; // minutos
 };
 
 function fmtDurationTick(v: number) {
@@ -34,7 +34,7 @@ function fmt(min: number) {
 export default function GroupBars({ data }: { data: Item[] }) {
   const max = niceMax(
     Math.max(
-      ...data.map((d) => Math.max(Number(d.lectura_min || 0), Number(d.oracion_min || 0)))
+      ...data.map((d) => Math.max(Number(d.lectura || 0), Number(d.oracion || 0)))
     )
   );
 
@@ -80,17 +80,17 @@ export default function GroupBars({ data }: { data: Item[] }) {
               color: "white",
             }}
             labelStyle={{ color: "rgba(255,255,255,0.85)" }}
-            formatter={(value: any, name) => [fmt(Number(value)), name === "lectura_min" ? "Lectura" : "Oración"]}
+            formatter={(value: any, name) => [fmt(Number(value)), name === "lectura" ? "Capítulos" : "Oración"]}
           />
           <Bar
-            dataKey="lectura_min"
-            name="Lectura"
+            dataKey="lectura"
+            name="Capítulos"
             fill="url(#gb_read)"
             radius={[12, 12, 6, 6]}
             maxBarSize={52}
            isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
           <Bar
-            dataKey="oracion_min"
+            dataKey="oracion"
             name="Oración"
             fill="url(#gb_pray)"
             radius={[12, 12, 6, 6]}

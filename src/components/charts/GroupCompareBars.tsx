@@ -4,26 +4,12 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } fro
 
 type Item = {
   group: string;
-  lectura: number; // minutos
+  lectura: number; // capítulos
   oracion: number; // minutos
 };
 
-function fmtDurationTick(v: number) {
-  const n = Math.max(0, Number(v || 0));
-  if (n < 60) return `${Math.round(n)}m`;
-  const h = n / 60;
-  if (Math.abs(h - Math.round(h)) < 1e-6) return `${Math.round(h)}h`;
-  return `${h.toFixed(1)}h`;
-}
-
-function niceMax(dataMax: number) {
-  const m = Math.max(0, Number(dataMax || 0));
-  const step = m <= 60 ? 10 : m <= 180 ? 30 : 60;
-  return Math.ceil(m / step) * step;
-}
-
-function fmt(min: number) {
-  const t = Math.max(0, Math.floor(min || 0));
+function fmtMinutes(v: number) {
+  const t = Math.max(0, Math.floor(Number(v || 0)));
   const h = Math.floor(t / 60);
   const m = t % 60;
   if (h <= 0) return `${m} min`;
@@ -31,8 +17,26 @@ function fmt(min: number) {
   return `${h} h ${m} min`;
 }
 
+function fmtChapters(v: number) {
+  const n = Math.max(0, Math.floor(Number(v || 0)));
+  return String(n);
+}
+
+function niceMaxMinutes(dataMax: number) {
+  const m = Math.max(0, Number(dataMax || 0));
+  const step = m <= 60 ? 10 : m <= 180 ? 30 : 60;
+  return Math.ceil(m / step) * step;
+}
+
+function niceMaxCount(dataMax: number) {
+  const m = Math.max(0, Number(dataMax || 0));
+  const step = m <= 30 ? 5 : m <= 80 ? 10 : 20;
+  return Math.ceil(m / step) * step;
+}
+
 export default function GroupCompareBars({ data }: { data: Item[] }) {
-  const max = niceMax(Math.max(...data.map((d) => Math.max(d.lectura || 0, d.oracion || 0))));
+  const maxCh = niceMaxCount(Math.max(...data.map((d) => Number(d.lectura || 0))));
+  const maxMin = niceMaxMinutes(Math.max(...data.map((d) => Number(d.oracion || 0))));
 
   return (
     <div className="w-full" style={{ height: 320 }}>
@@ -58,14 +62,30 @@ export default function GroupCompareBars({ data }: { data: Item[] }) {
             minTickGap={10}
             height={36}
           />
+
+          {/* Izquierda: capítulos */}
           <YAxis
-            domain={[0, max || 0]}
-            tickFormatter={fmtDurationTick}
+            yAxisId="chapters"
+            domain={[0, maxCh || 0]}
+            tickFormatter={(v) => fmtChapters(Number(v))}
             tick={{ fontSize: 12, fill: "rgba(255,255,255,0.65)" }}
             tickLine={false}
             axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
-            width={40}
+            width={42}
           />
+
+          {/* Derecha: minutos */}
+          <YAxis
+            yAxisId="minutes"
+            orientation="right"
+            domain={[0, maxMin || 0]}
+            tickFormatter={(v) => fmtMinutes(Number(v)).replace(" min", "m").replace(" h", "h")}
+            tick={{ fontSize: 12, fill: "rgba(255,255,255,0.65)" }}
+            tickLine={false}
+            axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
+            width={42}
+          />
+
           <Tooltip
             cursor={{ fill: "rgba(255,255,255,0.06)" }}
             contentStyle={{
@@ -76,15 +96,40 @@ export default function GroupCompareBars({ data }: { data: Item[] }) {
               color: "white",
             }}
             labelStyle={{ color: "rgba(255,255,255,0.85)" }}
-            formatter={(value: any, name) => [fmt(Number(value)), name === "lectura" ? "Lectura" : "Oración"]}
+            formatter={(value: any, name) => {
+              if (name === "lectura" || name === "Capítulos") return [fmtChapters(Number(value)), "Capítulos"];
+              return [fmtMinutes(Number(value)), "Oración"];
+            }}
           />
+
           <Legend
             verticalAlign="top"
             height={28}
             formatter={(value) => <span style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>{value}</span>}
           />
-          <Bar dataKey="lectura" name="Lectura" fill="url(#gcb_read)" radius={[12, 12, 6, 6]} maxBarSize={46}  isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
-          <Bar dataKey="oracion" name="Oración" fill="url(#gcb_pray)" radius={[12, 12, 6, 6]} maxBarSize={46}  isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
+
+          <Bar
+            dataKey="lectura"
+            name="Capítulos"
+            yAxisId="chapters"
+            fill="url(#gcb_read)"
+            radius={[12, 12, 6, 6]}
+            maxBarSize={46}
+            isAnimationActive={true}
+            animationDuration={650}
+            animationEasing="ease-out"
+          />
+          <Bar
+            dataKey="oracion"
+            name="Oración"
+            yAxisId="minutes"
+            fill="url(#gcb_pray)"
+            radius={[12, 12, 6, 6]}
+            maxBarSize={46}
+            isAnimationActive={true}
+            animationDuration={650}
+            animationEasing="ease-out"
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>

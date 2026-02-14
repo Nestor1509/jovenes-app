@@ -274,7 +274,7 @@ export default function LiderJovenDetallePage() {
               <Card>
                 <div className="text-sm font-semibold mb-3">Resumen del rango</div>
                 <div className="grid gap-3 md:grid-cols-3">
-                  <Stat label="Lectura" value={fmtMinutes(totals.bible)} />
+                  <Stat label="Capítulos" value={fmtMinutes(totals.bible)} />
                   <Stat label="Oración" value={fmtMinutes(totals.prayer)} />
                   <Stat label="Reportes" value={totals.reports} />
                 </div>
@@ -304,7 +304,7 @@ export default function LiderJovenDetallePage() {
                     <thead className="text-white/70">
                       <tr className="border-b border-white/10">
                         <th className="text-left py-2 pr-3">Fecha</th>
-                        <th className="text-left py-2 pr-3">Lectura</th>
+                        <th className="text-left py-2 pr-3">Capítulos</th>
                         <th className="text-left py-2 pr-3">Oración</th>
                       </tr>
                     </thead>
@@ -349,7 +349,7 @@ export default function LiderJovenDetallePage() {
                     </div>
 
                     <div className="mt-3 grid gap-3 md:grid-cols-3">
-                      <Stat label="Lectura" value={fmtMinutes(Number(selected.bible_minutes ?? 0))} />
+                      <Stat label="Capítulos" value={fmtMinutes(Number(selected.bible_minutes ?? 0))} />
                       <Stat label="Oración" value={fmtMinutes(Number(selected.prayer_minutes ?? 0))} />
                       <Stat
                         label="Caps"
@@ -362,7 +362,7 @@ export default function LiderJovenDetallePage() {
                     </div>
 
                     <div className="mt-3 grid gap-2">
-                      <div className="text-xs text-white/60">Lectura (capítulos):</div>
+                      <div className="text-xs text-white/60">Capítulos:</div>
                       <div className="text-sm whitespace-pre-wrap">{selected.bible_chapters?.trim() ? selected.bible_chapters : "—"}</div>
                       <div className="text-xs text-white/60 mt-2">Tema de oración:</div>
                       <div className="text-sm whitespace-pre-wrap">{selected.prayer_topic?.trim() ? selected.prayer_topic : "—"}</div>

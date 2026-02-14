@@ -79,42 +79,41 @@ export async function GET(req: Request) {
       { header: "Nombre", key: "name", width: 28 },
       { header: "Rol", key: "role", width: 10 },
       { header: "Grupo", key: "group", width: 22 },
-      { header: "Lectura (min)", key: "bible", width: 14 },
+      { header: "Capítulos", key: "chapters", width: 12 },
       { header: "Oración (min)", key: "prayer", width: 14 },
-      { header: "Total (min)", key: "total", width: 14 },
-    ];
+          ];
 
     ws.getRow(1).font = { bold: true };
     ws.getRow(1).alignment = { vertical: "middle" };
-    ws.autoFilter = "A1:G1";
+    ws.autoFilter = "A1:F1";
 
     let totalBible = 0;
     let totalPrayer = 0;
 
     for (const r of rows) {
-      const bible = toInt(r.bible_minutes);
+      const chapters = toInt(r.bible_minutes);
       const prayer = toInt(r.prayer_minutes);
-      totalBible += bible;
+      totalBible += chapters;
       totalPrayer += prayer;
       ws.addRow({
         date: r.report_date,
         name: r.profiles?.name ?? "—",
         role: r.profiles?.role ?? "—",
         group: r.profiles?.groups?.name ?? "Sin grupo",
-        bible,
+        chapters,
         prayer,
-        total: bible + prayer,
+
       });
     }
 
     // Resumen arriba (2 filas)
     ws.spliceRows(1, 0, [], []);
-    ws.mergeCells("A1:G1");
+    ws.mergeCells("A1:F1");
     ws.getCell("A1").value = "Reporte de actividades";
     ws.getCell("A1").font = { bold: true, size: 14 };
     ws.getCell("A1").alignment = { vertical: "middle", horizontal: "center" };
 
-    ws.mergeCells("A2:G2");
+    ws.mergeCells("A2:F2");
     const scope = groupId ? `Grupo: ${(meProfile as any)?.groups?.name ?? ""}` : "Todos";
     ws.getCell("A2").value = `Rango: ${from} a ${to} · Alcance: ${scope}`;
     ws.getCell("A2").font = { size: 11 };
@@ -123,7 +122,7 @@ export async function GET(req: Request) {
     // Reaplica estilo a headers ahora en fila 3
     ws.getRow(3).font = { bold: true };
     ws.getRow(3).alignment = { vertical: "middle" };
-    ws.autoFilter = "A3:G3";
+    ws.autoFilter = "A3:F3";
 
     // Totales al final
     ws.addRow({});
@@ -132,9 +131,9 @@ export async function GET(req: Request) {
       name: "Totales",
       role: "",
       group: "",
-      bible: totalBible,
+      chapters: totalBible,
       prayer: totalPrayer,
-      total: totalBible + totalPrayer,
+
     });
     tRow.font = { bold: true };
 

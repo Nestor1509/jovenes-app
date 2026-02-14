@@ -24,11 +24,24 @@ type ReportRow = {
   prayer_minutes: number;
 };
 
+const formatearCapitulos = (value?: number | null) => {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return "0";
+  return Math.round(n).toLocaleString("es-CO");
+};
+
+
 function formatearMinutos(min: any) {
   const t = Math.max(0, Math.floor(Number(min ?? 0)));
   const h = Math.floor(t / 60);
   const m = t % 60;
-  if (h <= 0) return `${m} min`;
+  if (h <= 0) return `${m}
+
+function formatearCapitulos(v: any) {
+  const n = Math.floor(Number(v ?? 0));
+  return Number.isFinite(n) ? String(Math.max(0, n)) : "0";
+}
+ min`;
   if (m === 0) return `${h} h`;
   return `${h} h ${m} min`;
 }
@@ -245,7 +258,7 @@ export default function AdminGeneralPage() {
             <div className="grid gap-3 md:grid-cols-4 mb-6">
               <Stat label="Personas (total)" value={totals.users} />
               <Stat label="Reportes" value={totals.reports} />
-              <Stat label="Lectura total" value={formatearMinutos(totals.bible)} />
+              <Stat label="Capítulos total" value={formatearCapitulos(totals.bible)} />
               <Stat label="Oración total" value={formatearMinutos(totals.prayer)} />
             </div>
 
@@ -269,7 +282,7 @@ export default function AdminGeneralPage() {
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <Stat label="Personas" value={roleTotals[r].users} />
                       <Stat label="Reportes" value={roleTotals[r].reports} />
-                      <Stat label="Lectura" value={formatearMinutos(roleTotals[r].bible)} />
+                      <Stat label="Capítulos" value={formatearCapitulos(roleTotals[r].bible)} />
                       <Stat label="Oración" value={formatearMinutos(roleTotals[r].prayer)} />
                     </div>
                   </div>
@@ -298,7 +311,7 @@ export default function AdminGeneralPage() {
                       <th className="text-left py-2 pr-3">Nombre</th>
                       <th className="text-left py-2 pr-3">Rol</th>
                       <th className="text-left py-2 pr-3">Grupo</th>
-                      <th className="text-right py-2 pr-3">Lectura</th>
+                      <th className="text-right py-2 pr-3">Capítulos</th>
                       <th className="text-right py-2 pr-3">Oración</th>
                       <th className="text-right py-2 pr-3">Reportes</th>
                       <th className="text-right py-2 pr-3">Total</th>
@@ -312,7 +325,7 @@ export default function AdminGeneralPage() {
                         <td className="py-2 pr-3 font-medium">{r.name}</td>
                         <td className="py-2 pr-3 text-white/80">{roleLabel(r.role)}</td>
                         <td className="py-2 pr-3 text-white/80">{r.group_name}</td>
-                        <td className="py-2 pr-3 text-right">{formatearMinutos(r.bible_minutes)}</td>
+                        <td className="py-2 pr-3 text-right">{formatearCapitulos(r.bible_minutes)}</td>
                         <td className="py-2 pr-3 text-right">{formatearMinutos(r.prayer_minutes)}</td>
                         <td className="py-2 pr-3 text-right">{r.reports}</td>
                         <td className="py-2 pr-3 text-right font-semibold">{formatearMinutos(r.total_minutes)}</td>

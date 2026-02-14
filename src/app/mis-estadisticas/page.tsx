@@ -30,6 +30,12 @@ function formatearMinutos(min: number) {
   return `${h} h ${m} min`;
 }
 
+
+function formatearCapitulos(v: number) {
+  const n = Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
+  return String(n);
+}
+
 function hoyISO() {
   const d = new Date();
   const yyyy = d.getFullYear();
@@ -187,7 +193,7 @@ export default function MisEstadisticasPage() {
               <div className="text-sm font-medium mb-1">Semana</div>
               <div className="text-xs text-white/60 mb-4">Desde {weekStart}</div>
               <div className="grid gap-2">
-                <Stat label="Lectura" value={formatearMinutos(week.total_bible_minutes)} />
+                <Stat label="Capítulos" value={formatearCapitulos(week.total_bible_minutes)} />
                 <Stat label="Oración" value={formatearMinutos(week.total_prayer_minutes)} />
                 <Stat label="Reportes" value={week.total_reports} />
               </div>
@@ -197,7 +203,7 @@ export default function MisEstadisticasPage() {
               <div className="text-sm font-medium mb-1">Mes</div>
               <div className="text-xs text-white/60 mb-4">Desde {monthStart}</div>
               <div className="grid gap-2">
-                <Stat label="Lectura" value={formatearMinutos(month.total_bible_minutes)} />
+                <Stat label="Capítulos" value={formatearCapitulos(month.total_bible_minutes)} />
                 <Stat label="Oración" value={formatearMinutos(month.total_prayer_minutes)} />
                 <Stat label="Reportes" value={month.total_reports} />
               </div>
@@ -207,7 +213,7 @@ export default function MisEstadisticasPage() {
               <div className="text-sm font-medium mb-1">Histórico</div>
               <div className="text-xs text-white/60 mb-4">Todo el tiempo</div>
               <div className="grid gap-2">
-                <Stat label="Lectura" value={formatearMinutos(all.total_bible_minutes)} />
+                <Stat label="Capítulos" value={formatearCapitulos(all.total_bible_minutes)} />
                 <Stat label="Oración" value={formatearMinutos(all.total_prayer_minutes)} />
                 <Stat label="Reportes" value={all.total_reports} />
               </div>
@@ -215,7 +221,7 @@ export default function MisEstadisticasPage() {
           </div>
 
           <div className="mt-2 grid grid-cols-1 gap-4">
-            <ChartCard title="Tendencia (mes a mes)" subtitle="Lectura bíblica y oración acumuladas por mes">
+            <ChartCard title="Tendencia (mes a mes)" subtitle="Capítulos leídos y oración acumulados por mes">
               {trendData.length < 2 ? (
                 <EmptyState title="Aún no hay suficientes datos" description="Cuando tengas más reportes, verás tu tendencia mes a mes aquí." />
               ) : (

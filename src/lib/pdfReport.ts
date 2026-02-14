@@ -52,7 +52,7 @@ export async function buildReportsPDF(params: {
   const total = rows.length;
 
   const summaryY = height - 120;
-  page.drawText(`Registros: ${total}   |   Lectura total: ${totalLectura} min   |   Oración total: ${totalOracion} min`, {
+  page.drawText(`Registros: ${total}   |   Capítulos total: ${totalLectura}   |   Oración total: ${totalOracion} min`, {
     x: 32,
     y: summaryY,
     size: 10,
@@ -65,7 +65,7 @@ export async function buildReportsPDF(params: {
   const rowH = 16;
   const colX = [32, 120, 210, 360, 430, 500];
 
-  const header = ["Fecha", "Nombre", "Grupo", "Lectura", "Oración", "Semana"];
+  const header = ["Fecha", "Nombre", "Grupo", "Capítulos", "Oración (min)", "Semana"];
   for (let i = 0; i < header.length; i++) {
     page.drawText(header[i], {
       x: colX[i],

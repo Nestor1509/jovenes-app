@@ -25,7 +25,7 @@ export function buildCSV(rows: ExportRow[]) {
     "Mes",
     "Nombre",
     "Grupo",
-    "Lectura",
+    "Capítulos",
     "Oración",
     "Observaciones",
   ];

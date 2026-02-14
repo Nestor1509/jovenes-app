@@ -51,10 +51,6 @@ function fmtMinutes(min: number) {
   return `${h} h ${m} min`;
 }
 
-function fmtCaps(v: any) {
-  return `${Math.max(0, Math.floor(Number(v ?? 0)))}`;
-}
-
 function weekKey(iso: string) {
   // Semana por lunes
   const d = new Date(iso + "T00:00:00");
@@ -278,7 +274,7 @@ export default function LiderJovenDetallePage() {
               <Card>
                 <div className="text-sm font-semibold mb-3">Resumen del rango</div>
                 <div className="grid gap-3 md:grid-cols-3">
-                  <Stat label="Capítulos" value={fmtCaps(totals.bible)} />
+                  <Stat label="Lectura" value={fmtMinutes(totals.bible)} />
                   <Stat label="Oración" value={fmtMinutes(totals.prayer)} />
                   <Stat label="Reportes" value={totals.reports} />
                 </div>
@@ -308,7 +304,7 @@ export default function LiderJovenDetallePage() {
                     <thead className="text-white/70">
                       <tr className="border-b border-white/10">
                         <th className="text-left py-2 pr-3">Fecha</th>
-                        <th className="text-left py-2 pr-3">Capítulos</th>
+                        <th className="text-left py-2 pr-3">Lectura</th>
                         <th className="text-left py-2 pr-3">Oración</th>
                       </tr>
                     </thead>
@@ -320,7 +316,7 @@ export default function LiderJovenDetallePage() {
                           className="border-b border-white/5 hover:bg-white/5 cursor-pointer"
                         >
                           <td className="py-2 pr-3">{r.report_date}</td>
-                          <td className="py-2 pr-3">{fmtCaps(Number(r.bible_minutes ?? 0))}</td>
+                          <td className="py-2 pr-3">{fmtMinutes(Number(r.bible_minutes ?? 0))}</td>
                           <td className="py-2 pr-3">{fmtMinutes(Number(r.prayer_minutes ?? 0))}</td>
                         </tr>
                       ))}
@@ -353,7 +349,7 @@ export default function LiderJovenDetallePage() {
                     </div>
 
                     <div className="mt-3 grid gap-3 md:grid-cols-3">
-                      <Stat label="Capítulos" value={fmtCaps(Number(selected.bible_minutes ?? 0))} />
+                      <Stat label="Lectura" value={fmtMinutes(Number(selected.bible_minutes ?? 0))} />
                       <Stat label="Oración" value={fmtMinutes(Number(selected.prayer_minutes ?? 0))} />
                       <Stat
                         label="Caps"

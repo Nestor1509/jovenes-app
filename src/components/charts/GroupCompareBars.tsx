@@ -4,7 +4,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } fro
 
 type Item = {
   group: string;
-  lectura: number; // capítulos
+  lectura: number; // minutos
   oracion: number; // minutos
 };
 
@@ -14,10 +14,6 @@ function fmtDurationTick(v: number) {
   const h = n / 60;
   if (Math.abs(h - Math.round(h)) < 1e-6) return `${Math.round(h)}h`;
   return `${h.toFixed(1)}h`;
-}
-
-function fmtCountTick(v: number) {
-  return `${Math.max(0, Math.floor(Number(v || 0)))}`;
 }
 
 function niceMax(dataMax: number) {
@@ -36,8 +32,7 @@ function fmt(min: number) {
 }
 
 export default function GroupCompareBars({ data }: { data: Item[] }) {
-  const maxLeft = Math.max(0, ...data.map((d) => Number(d.lectura || 0)));
-  const maxRight = niceMax(Math.max(0, ...data.map((d) => Number(d.oracion || 0))));
+  const max = niceMax(Math.max(...data.map((d) => Math.max(d.lectura || 0, d.oracion || 0))));
 
   return (
     <div className="w-full" style={{ height: 320 }}>
@@ -64,23 +59,12 @@ export default function GroupCompareBars({ data }: { data: Item[] }) {
             height={36}
           />
           <YAxis
-            yAxisId="left"
-            domain={[0, Math.ceil(maxLeft) || 0]}
-            tickFormatter={fmtCountTick}
-            tick={{ fontSize: 12, fill: "rgba(255,255,255,0.65)" }}
-            tickLine={false}
-            axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
-            width={40}
-          />
-          <YAxis
-            yAxisId="right"
-            orientation="right"
-            domain={[0, maxRight || 0]}
+            domain={[0, max || 0]}
             tickFormatter={fmtDurationTick}
             tick={{ fontSize: 12, fill: "rgba(255,255,255,0.65)" }}
             tickLine={false}
             axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
-            width={48}
+            width={40}
           />
           <Tooltip
             cursor={{ fill: "rgba(255,255,255,0.06)" }}
@@ -92,17 +76,15 @@ export default function GroupCompareBars({ data }: { data: Item[] }) {
               color: "white",
             }}
             labelStyle={{ color: "rgba(255,255,255,0.85)" }}
-            formatter={(value: any, name) =>
-              name === "lectura" ? [fmtCountTick(Number(value)), "Capítulos"] : [fmt(Number(value)), "Oración"]
-            }
+            formatter={(value: any, name) => [fmt(Number(value)), name === "lectura" ? "Lectura" : "Oración"]}
           />
           <Legend
             verticalAlign="top"
             height={28}
             formatter={(value) => <span style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>{value}</span>}
           />
-          <Bar yAxisId="left" dataKey="lectura" name="Capítulos" fill="url(#gcb_read)" radius={[12, 12, 6, 6]} maxBarSize={46}  isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
-          <Bar yAxisId="right" dataKey="oracion" name="Oración" fill="url(#gcb_pray)" radius={[12, 12, 6, 6]} maxBarSize={46}  isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
+          <Bar dataKey="lectura" name="Lectura" fill="url(#gcb_read)" radius={[12, 12, 6, 6]} maxBarSize={46}  isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
+          <Bar dataKey="oracion" name="Oración" fill="url(#gcb_pray)" radius={[12, 12, 6, 6]} maxBarSize={46}  isAnimationActive={true} animationDuration={650} animationEasing="ease-out" />
         </BarChart>
       </ResponsiveContainer>
     </div>

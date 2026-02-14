@@ -11,11 +11,6 @@ function fmtMinutes(min: number) {
   return `${h}h ${m}m`;
 }
 
-function fmtChapters(v: number) {
-  const n = Math.max(0, Math.floor(Number(v || 0)));
-  return `${n}`;
-}
-
 export function TrendLine({
   data,
   height = 240,
@@ -51,20 +46,10 @@ export function TrendLine({
             height={36}
           />
           <YAxis
-            yAxisId="left"
             tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 12 }}
             tickLine={false}
             axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
             width={40}
-            tickFormatter={(v) => fmtChapters(Number(v))}
-          />
-          <YAxis
-            yAxisId="right"
-            orientation="right"
-            tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 12 }}
-            tickLine={false}
-            axisLine={{ stroke: "rgba(255,255,255,0.10)" }}
-            width={48}
             tickFormatter={(v) => fmtMinutes(Number(v))}
           />
           <Tooltip
@@ -76,11 +61,7 @@ export function TrendLine({
               color: "white",
             }}
             labelStyle={{ color: "rgba(255,255,255,0.85)" }}
-            formatter={(value: any, name) =>
-              name === "lectura"
-                ? [fmtChapters(Number(value)), "Capítulos"]
-                : [fmtMinutes(Number(value)), "Oración"]
-            }
+            formatter={(value: any, name) => [fmtMinutes(Number(value)), name === "lectura" ? "Lectura" : "Oración"]}
           />
           <Legend
             verticalAlign="top"
@@ -90,12 +71,11 @@ export function TrendLine({
           <Line
             type="monotone"
             dataKey="lectura"
-            name="Capítulos"
+            name="Lectura"
             stroke="url(#tl_bible)"
             strokeWidth={3}
             dot={false}
             activeDot={{ r: 5 }}
-            yAxisId="left"
           />
           <Line
             type="monotone"
@@ -105,7 +85,6 @@ export function TrendLine({
             strokeWidth={3}
             dot={false}
             activeDot={{ r: 5 }}
-            yAxisId="right"
           />
         </LineChart>
       </ResponsiveContainer>

@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { Container, Card, Title, Subtitle, Button, Input, PageFade } from "@/components/ui";
 import { Clock3, BookOpen, HeartHandshake, PencilLine, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth";
 
 function todayISO() {
   const d = new Date();
@@ -56,7 +57,7 @@ function lockKey(dateISO: string) {
 function notifyLockChanged() {
   try {
     window.dispatchEvent(new Event("report_lock_changed"));
-  } catch {}
+  } catch { }
 }
 
 export default function ReportePage() {
@@ -75,66 +76,48 @@ export default function ReportePage() {
 
   const [msg, setMsg] = useState("");
 
+  const { loading, session } = useAuth();
   const router = useRouter();
 
-useEffect(() => {
-  let cancelled = false;
+  useEffect(() => {
+    if (loading) return;
+    if (!session) router.replace("/");
+  }, [loading, session, router]);
 
-  (async () => {
-    setMode("loading");
-    setMsg("");
+  useEffect(() => {
+    if (loading || !session) return;
 
-    const { data, error } = await supabase.auth.getSession();
-    const session = data.session;
-
-    // Si aún no hay sesión, manda al login SIN recargar la página completa
-    if (!session) {
-      if (!cancelled) router.replace("/");
-      return;
-    }
-
-    const { data: rep, error: repErr } = await supabase
-      .from("reports")
-      .select("bible_chapters, prayer_minutes")
-      .eq("user_id", session.user.id)
-      .eq("report_date", dateKey)
-      .maybeSingle();
-
-    if (cancelled) return;
-
-    if (!repErr && rep) {
-      setExisting({
-        prayer_minutes: rep.prayer_minutes ?? 0,
-        chapters_count: rep.bible_chapters ?? 0,
-      });
-
-      const locked = (() => {
-        try {
-          return localStorage.getItem(lockKey(dateKey)) === "1";
-        } catch {
-          return false;
-        }
-      })();
-
-      setMode(locked ? "doneLocked" : "askEdit");
-      setPrayerH("0");
-      setPrayerM("0");
-    } else {
-      setExisting(null);
-      setMode("new");
+    // aquí ya es estable
+    const loadReport = async () => {
       try {
-        localStorage.removeItem(lockKey(dateKey));
-      } catch {}
-      notifyLockChanged();
-      setPrayerH("0");
-      setPrayerM("0");
-    }
-  })();
+        const { data, error } = await supabase
+          .from("reports")
+          .select("chapters_count, prayer_minutes")
+          .eq("user_id", session.user.id)
+          .eq("report_date", dateKey)
+          .maybeSingle();
 
-  return () => {
-    cancelled = true;
-  };
-}, [dateKey, router]);
+        if (error) {
+          console.error("Error loading report:", error);
+          setMode("new");
+          return;
+        }
+
+        if (data) {
+          setExisting(data);
+          setMode("askEdit");
+        } else {
+          setMode("new");
+        }
+      } catch (err) {
+        console.error("Error loading report:", err);
+        setMode("new");
+      }
+    };
+
+    loadReport();
+  }, [loading, session, dateKey]);
+
 
 
   const onlyDigits = (v: string) => v.replace(/[^\d]/g, "");
@@ -188,7 +171,7 @@ useEffect(() => {
     setExisting({ prayer_minutes, chapters_count });
     try {
       localStorage.removeItem(lockKey(dateKey));
-    } catch {}
+    } catch { }
     notifyLockChanged();
     setMode("done");
     setMsg("✅ Guardado correctamente");
@@ -234,7 +217,7 @@ useEffect(() => {
                 onClick={() => {
                   try {
                     localStorage.removeItem(lockKey(dateKey));
-                  } catch {}
+                  } catch { }
                   notifyLockChanged();
                   loadExistingIntoForm();
                   setMode("editing");
@@ -282,7 +265,7 @@ useEffect(() => {
                     onClick={() => {
                       try {
                         localStorage.removeItem(lockKey(dateKey));
-                      } catch {}
+                      } catch { }
                       notifyLockChanged();
                       loadExistingIntoForm();
                       setMode("editing");
@@ -299,7 +282,7 @@ useEffect(() => {
                       // que la app no muestre la opción de reporte/editar otra vez.
                       try {
                         localStorage.setItem(lockKey(dateKey), "1");
-                      } catch {}
+                      } catch { }
                       notifyLockChanged();
                       setMode("doneLocked");
                       setMsg("");
@@ -371,7 +354,7 @@ useEffect(() => {
                             if (prayerH === "0") setPrayerH("");
                             try {
                               (e.target as HTMLInputElement).select();
-                            } catch {}
+                            } catch { }
                           }}
                           onChange={(e) => setPrayerH(onlyDigits(e.target.value))}
                           onBlur={() => {
@@ -391,7 +374,7 @@ useEffect(() => {
                             if (prayerM === "0") setPrayerM("");
                             try {
                               (e.target as HTMLInputElement).select();
-                            } catch {}
+                            } catch { }
                           }}
                           onChange={(e) => setPrayerM(onlyDigits(e.target.value))}
                           onBlur={() => {

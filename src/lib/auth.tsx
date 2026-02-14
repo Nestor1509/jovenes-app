@@ -122,6 +122,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(p);
       setLoading(false);
     } catch (e: any) {
+      if (String(e?.message || "").toLowerCase().includes("bad_oauth_state")) {
+        await supabase.auth.signOut();
+      }
       setProfile(null);
       setError(e?.message ? String(e.message) : "No se pudo cargar tu perfil.");
       setLoading(false);
@@ -134,66 +137,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-  // 1) initial load
-  refresh();
+    // 1) initial load
+    refresh();
 
-  // 2) keep in sync without refetching on every page
-  const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, sess) => {
-    setSession(sess);
-    if (!sess?.user?.id) {
-      setProfile(null);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const p = await ensureProfile(sess.user as SbUser);
-      setProfile(p);
-    } catch (e: any) {
-      setProfile(null);
-      setError(e?.message ? String(e.message) : "No se pudo cargar tu perfil.");
-    } finally {
-      setLoading(false);
-    }
-  });
-
-  // ✅ 3) Re-sync when tab becomes active again (fix "needs reload")
-  const onFocus = async () => {
-    try {
-      const { data } = await supabase.auth.getSession();
-      const s = data?.session ?? null;
-
-      if (!s?.user?.id) {
-        setSession(null);
+    // 2) keep in sync without refetching on every page
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, sess) => {
+      setSession(sess);
+      if (!sess?.user?.id) {
         setProfile(null);
+        setLoading(false);
         return;
       }
+      setLoading(true);
+      setError("");
+      try {
+        const p = await ensureProfile(sess.user as SbUser);
+        setProfile(p);
+      } catch (e: any) {
+        setProfile(null);
+        setError(e?.message ? String(e.message) : "No se pudo cargar tu perfil.");
+      } finally {
+        setLoading(false);
+      }
+    });
 
-      // opcional: refrescar solo si expira pronto (evita parpadeo de loading)
-      const exp = (s.expires_at ?? 0) * 1000;
-      const soon = exp - Date.now() < 2 * 60 * 1000; // 2 minutos
+    // ✅ 3) Re-sync when tab becomes active again (fix "needs reload")
+    const onFocus = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const s = data?.session ?? null;
 
-      if (soon) await refresh();
-      else setSession(s); // al menos rehidrata el estado
-    } catch {
-      // silencioso
-    }
-  };
+        if (!s?.user?.id) {
+          setSession(null);
+          setProfile(null);
+          return;
+        }
 
-  const onVisible = () => {
-    if (document.visibilityState === "visible") onFocus();
-  };
+        // opcional: refrescar solo si expira pronto (evita parpadeo de loading)
+        const exp = (s.expires_at ?? 0) * 1000;
+        const soon = exp - Date.now() < 2 * 60 * 1000; // 2 minutos
 
-  window.addEventListener("focus", onFocus);
-  document.addEventListener("visibilitychange", onVisible);
+        if (soon) await refresh();
+        else setSession(s); // al menos rehidrata el estado
+      } catch {
+        // silencioso
+      }
+    };
 
-  return () => {
-    sub.subscription.unsubscribe();
-    window.removeEventListener("focus", onFocus);
-    document.removeEventListener("visibilitychange", onVisible);
-  };
-}, [refresh, ensureProfile]);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") onFocus();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      sub.subscription.unsubscribe();
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refresh, ensureProfile]);
 
 
   const value = useMemo<AuthCtx>(

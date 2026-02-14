@@ -1,5 +1,6 @@
 import "./globals.css";
 import AppShell from "@/components/AppShell";
+import NavBar from "@/components/NavBar";
 
 export const metadata = {
   title: "Ministerio Águilas",
@@ -7,12 +8,17 @@ export const metadata = {
 };
 
 import { AuthProvider } from "@/lib/auth";
+import OAuthUrlCleaner from "./OAuthUrlCleaner";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <OAuthUrlCleaner />
+          <NavBar />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

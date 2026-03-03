@@ -336,7 +336,7 @@ export default function AdminPersonaDetallePage() {
                     </div>
 
                     <div className="mt-3 grid gap-3 md:grid-cols-3">
-                      <Stat label="Capítulos" value={fmtMinutes(Number(selected.bible_minutes ?? 0))} />
+                      <Stat label="Capítulos" value={Number(selected.bible_minutes ?? 0)} />
                       <Stat label="Oración" value={fmtMinutes(Number(selected.prayer_minutes ?? 0))} />
                       <Stat
                         label="Caps"

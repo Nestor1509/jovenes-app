@@ -271,28 +271,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // 2) escuchar cambios de auth (login/logout/refresh interno)
     const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, sess) => {
-      safeSet(setSession, sess);
+  setSession(sess);
 
-      if (!sess?.user?.id) {
-        safeSet(setProfile, null);
-        safeSet(setError, "");
-        safeSet(setLoading, false);
-        return;
-      }
+  // ✅ Si hay sesión, NO muestres error de "login fallido"
+  if (sess?.user?.id) {
+    setError("");
+  }
 
-      // No bloquear toda la UI por eventos de background
-      safeSet(setLoading, false);
+  if (!sess?.user?.id) {
+    setProfile(null);
+    setLoading(false);
+    return;
+  }
 
-      try {
-        const p = await ensureProfile(sess.user as SbUser);
-        safeSet(setProfile, p);
-        safeSet(setError, "");
-      } catch (e: any) {
-        safeSet(setProfile, null);
-        safeSet(setError, e?.message ? String(e.message) : "No se pudo cargar tu perfil.");
-      }
-    });
+  // No bloquear UI
+  setLoading(false);
 
+  try {
+    const p = await ensureProfile(sess.user as SbUser);
+    setProfile(p);
+    setError(""); // ✅ mantiene limpio si el perfil cargó bien
+  } catch (e: any) {
+    // ⚠️ Este error es de PERFIL, no de LOGIN.
+    // Si quieres, muestra algo distinto en la UI.
+    setProfile(null);
+    setError(e?.message ? String(e.message) : "No se pudo cargar tu perfil.");
+  }
+});
     // 3) rehidratar + refresh proactivo al volver a pestaña
     const onVisible = () => {
       if (document.visibilityState === "visible") refreshIfExpiringSoonSoft();

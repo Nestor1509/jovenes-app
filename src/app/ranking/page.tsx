@@ -146,9 +146,8 @@ export default function RankingPage() {
   const [period, setPeriod] = useState<Period>("week");
   const [limit, setLimit] = useState<number>(10);
 
-  // rango opcional
-  const [startDate, setStartDate] = useState<string>(""); // YYYY-MM-DD
-  const [endDate, setEndDate] = useState<string>(""); // YYYY-MM-DD
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const rangeActive = useMemo(() => !!startDate && !!endDate, [startDate, endDate]);
 
   const dateError = useMemo(() => {
@@ -262,28 +261,21 @@ export default function RankingPage() {
   const mePos = meRow ? rows.findIndex((r) => r.user_id === session.user.id) + 1 : null;
 
   const MetricIcon = metric === "chapters" ? BookOpen : HeartHandshake;
-
   const top1 = rows[0] || null;
+
   const top1Value =
-    metric === "chapters"
-      ? String(Number(top1?.total ?? 0))
-      : fmtPrayerMinutes(Number(top1?.total ?? 0));
+    metric === "chapters" ? String(Number(top1?.total ?? 0)) : fmtPrayerMinutes(Number(top1?.total ?? 0));
 
   const meValue =
-    metric === "chapters"
-      ? String(Number(meRow?.total ?? 0))
-      : fmtPrayerMinutes(Number(meRow?.total ?? 0));
+    metric === "chapters" ? String(Number(meRow?.total ?? 0)) : fmtPrayerMinutes(Number(meRow?.total ?? 0));
 
   return (
     <Container>
       <PageFade>
         <div className="relative">
-          {/* Fondo decorativo suave */}
           <div className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 w-[900px] h-[260px] rounded-full blur-3xl opacity-[0.10] bg-white/20" />
 
-          {/* =========================
-              MOBILE: sticky top bar
-             ========================= */}
+          {/* MOBILE: sticky top bar */}
           <div className="lg:hidden sticky top-2 z-40">
             <Card className="p-3 bg-black/60 backdrop-blur border border-white/10">
               <div className="flex items-start justify-between gap-2">
@@ -295,8 +287,7 @@ export default function RankingPage() {
                     <div className="min-w-0">
                       <div className="text-sm font-semibold truncate">Ranking</div>
                       <div className="text-[12px] text-white/60 truncate">
-                        {metric === "chapters" ? "Capítulos" : "Oración"} ·{" "}
-                        {rangeActive ? "Rango" : periodLabel(period)}
+                        {metric === "chapters" ? "Capítulos" : "Oración"} · {rangeActive ? "Rango" : periodLabel(period)}
                       </div>
                     </div>
                   </div>
@@ -350,7 +341,6 @@ export default function RankingPage() {
                 </div>
               </div>
 
-              {/* Controls compactos móviles */}
               <div className="mt-3 grid gap-2">
                 <Segmented
                   value={metric}
@@ -379,17 +369,14 @@ export default function RankingPage() {
             </Card>
           </div>
 
-          {/* =========================
-              LAYOUT PRINCIPAL
-              Desktop: sidebar fijo + ranking con scroll interno
-              Mobile: ranking normal debajo del sticky bar
-             ========================= */}
-
-          {/* En desktop: evitamos scroll de la página; el scroll vive en el ranking */}
-          <div className="mt-4 lg:h-[calc(100vh-140px)] lg:overflow-hidden">
-            <div className="grid gap-4 lg:gap-6 lg:grid-cols-[420px_1fr] items-start h-full">
-              {/* ===== Sidebar desktop ===== */}
-              <div className="hidden lg:block h-full">
+          {/* IMPORTANTÍSIMO:
+              - En mobile no forzamos altura ni overflow.
+              - En desktop sí: el ranking tendrá scroll interno.
+          */}
+          <div className="mt-4 lg:h-[calc(100vh-160px)] lg:min-h-0">
+            <div className="grid gap-4 lg:gap-6 lg:grid-cols-[420px_1fr] items-start lg:h-full lg:min-h-0">
+              {/* SIDEBAR desktop */}
+              <div className="hidden lg:block lg:h-full lg:min-h-0">
                 <Card className="p-4 bg-black/20 border border-white/10 sticky top-6">
                   <div className="flex items-center gap-2">
                     <div className="h-10 w-10 rounded-2xl border border-white/10 bg-white/5 grid place-items-center">
@@ -435,7 +422,6 @@ export default function RankingPage() {
 
                   {msg && <div className="text-sm text-amber-200 mt-3">{msg}</div>}
 
-                  {/* Resumen mini */}
                   <div className="mt-4 grid gap-3">
                     <Card className="p-4 bg-black/20 border border-white/10">
                       <div className="flex items-center gap-2 text-xs text-white/60">
@@ -464,7 +450,6 @@ export default function RankingPage() {
                     <Divider />
                   </div>
 
-                  {/* Controls desktop */}
                   <div className="grid gap-3">
                     <Segmented
                       value={metric}
@@ -492,7 +477,6 @@ export default function RankingPage() {
                       )}
                     </div>
 
-                    {/* Rango (sin íconos sobre el date nativo para evitar superposiciones) */}
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <div className="text-xs font-medium text-white/70">Rango de fechas</div>
@@ -506,7 +490,6 @@ export default function RankingPage() {
                               ? "border-white/10 text-white/30"
                               : "border-white/10 text-white/70 hover:bg-white/5",
                           ].join(" ")}
-                          title="Limpiar"
                         >
                           Limpiar
                         </button>
@@ -598,11 +581,10 @@ export default function RankingPage() {
                 </Card>
               </div>
 
-              {/* ===== Content ===== */}
-              <div className="min-w-0 h-full">
-                {/* Desktop: Card a altura completa, scroll sólo en lista */}
-                <Card className="bg-black/20 border border-white/10 p-4 lg:h-full lg:flex lg:flex-col lg:overflow-hidden">
-                  {/* Header fijo dentro del card */}
+              {/* CONTENT: ranking */}
+              <div className="min-w-0 lg:h-full lg:min-h-0">
+                <Card className="bg-black/20 border border-white/10 p-4 lg:h-full lg:min-h-0 lg:flex lg:flex-col">
+                  {/* Header */}
                   <div className="flex items-start justify-between gap-3 pb-3">
                     <div className="flex items-center gap-2">
                       <MetricIcon size={18} className="opacity-80 mt-0.5" />
@@ -626,31 +608,15 @@ export default function RankingPage() {
                         </div>
                       </div>
                     </div>
-
-                    {/* Botón extra en desktop para refrescar rápido */}
-                    <div className="hidden lg:flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={load}
-                        disabled={busy || !!dateError}
-                        className={[
-                          "rounded-2xl border px-3 py-2 text-sm transition flex items-center gap-2",
-                          busy || !!dateError
-                            ? "border-white/10 bg-white/5 text-white/40"
-                            : "border-white/10 bg-white/10 text-white hover:bg-white/15",
-                        ].join(" ")}
-                        title="Actualizar"
-                      >
-                        <RefreshCw size={16} className={busy ? "animate-spin" : ""} />
-                        <span className="text-sm">Actualizar</span>
-                      </button>
-                    </div>
                   </div>
 
                   <Divider />
 
-                  {/* Lista: en desktop scroll interno; en mobile normal */}
-                  <div className="pt-3 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+                  {/* LISTA
+                      - mobile: normal
+                      - desktop: scroll interno (flex-1 + min-h-0 + overflow-y-auto)
+                  */}
+                  <div className="pt-3 lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
                     {busy && rows.length === 0 ? (
                       <div className="text-sm text-white/70">Cargando ranking…</div>
                     ) : rows.length === 0 ? (
@@ -740,10 +706,7 @@ export default function RankingPage() {
             </div>
           </div>
 
-          {/* =========================
-              MOBILE FILTERS: bottom sheet
-              (scroll interno + safe area)
-             ========================= */}
+          {/* MOBILE FILTERS: bottom sheet */}
           <AnimatePresence>
             {filtersOpen && (
               <>
@@ -779,9 +742,7 @@ export default function RankingPage() {
                       </button>
                     </div>
 
-                    {/* contenido scrolleable */}
                     <div className="mt-3 max-h-[70vh] overflow-y-auto pr-1 grid gap-3">
-                      {/* Top */}
                       <div>
                         <div className="text-xs text-white/60 mb-1">Top</div>
                         <Segmented
@@ -795,7 +756,6 @@ export default function RankingPage() {
                         />
                       </div>
 
-                      {/* Rango (sin iconos dentro del date) */}
                       <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                         <div className="flex items-center justify-between gap-2 mb-2">
                           <div className="text-xs font-medium text-white/70">Rango de fechas</div>
@@ -858,7 +818,6 @@ export default function RankingPage() {
                         </div>
                       </div>
 
-                      {/* Admin */}
                       {isAdmin && (
                         <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                           <div className="text-xs text-white/60 mb-1">Admin: Group ID (vacío = Global)</div>
@@ -867,9 +826,6 @@ export default function RankingPage() {
                             value={adminGroup}
                             onChange={(e) => setAdminGroup(e.target.value)}
                           />
-                          <div className="text-[11px] text-white/50 mt-1">
-                            Tip: copia el <b>group_id</b> desde el perfil de un joven.
-                          </div>
                         </div>
                       )}
 

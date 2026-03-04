@@ -53,7 +53,6 @@ function traducirError(msg: string) {
   return "Ocurrió un error. Intenta de nuevo.";
 }
 
-
 type ExistingReport = {
   prayer_minutes: number;
   chapters_count?: number | null;
@@ -69,7 +68,7 @@ function lockKey(dateISO: string) {
 function notifyLockChanged() {
   try {
     window.dispatchEvent(new Event("report_lock_changed"));
-  } catch { }
+  } catch {}
 }
 
 export default function ReportePage() {
@@ -131,8 +130,6 @@ export default function ReportePage() {
     loadReport();
   }, [loading, session, dateKey]);
 
-
-
   const onlyDigits = (v: string) => v.replace(/[^\d]/g, "");
 
   function loadExistingIntoForm() {
@@ -143,7 +140,7 @@ export default function ReportePage() {
     setPrayerM(p.m === 0 ? "" : String(p.m));
 
     // Capítulos (requerido)
-    const cc = (existing?.chapters_count ?? existing?.bible_minutes ?? 0);
+    const cc = existing?.chapters_count ?? existing?.bible_minutes ?? 0;
     setChaptersCount(!Number.isFinite(Number(cc)) ? "" : String(cc));
   }
 
@@ -163,24 +160,59 @@ export default function ReportePage() {
 
     const chapters_count = clampInt(Number(chaptersCount), 0, 500);
 
-    const { error } = await supabase.from("reports").upsert(
-      {
+    // FIX:
+    // Evitamos upsert() porque ejecuta INSERT ... ON CONFLICT DO UPDATE,
+    // y eso puede disparar la policy de INSERT (RLS) incluso al "editar".
+    // En su lugar:
+    // - si hay existing => UPDATE
+    // - si no hay => INSERT
+    // - si UPDATE no encuentra fila => INSERT
+    let finalError: any = null;
+
+    if (existing) {
+      const { data: updData, error: updErr } = await supabase
+        .from("reports")
+        .update({
+          // Compatibilidad con vistas/estadísticas existentes en Supabase:
+          // reaprovechamos bible_minutes como "capítulos".
+          bible_minutes: chapters_count,
+          prayer_minutes,
+          chapters_count,
+        })
+        .eq("user_id", user.id)
+        .eq("report_date", today)
+        .select("user_id")
+        .maybeSingle();
+
+      if (updErr) {
+        finalError = updErr;
+      } else if (!updData) {
+        // No actualizó nada (fila no existía): intentamos insert
+        const { error: insErr } = await supabase.from("reports").insert({
+          user_id: user.id,
+          report_date: today,
+          bible_minutes: chapters_count,
+          prayer_minutes,
+          chapters_count,
+        });
+        finalError = insErr;
+      }
+    } else {
+      const { error: insErr } = await supabase.from("reports").insert({
         user_id: user.id,
         report_date: today,
-        // Compatibilidad con vistas/estadísticas existentes en Supabase:
-        // reaprovechamos bible_minutes como "capítulos".
         bible_minutes: chapters_count,
         prayer_minutes,
         chapters_count,
-      },
-      { onConflict: "user_id,report_date" }
-    );
+      });
+      finalError = insErr;
+    }
 
-    if (error) {
-      console.error("Error saving report:", error);
-      const friendly = traducirError(error.message);
+    if (finalError) {
+      console.error("Error saving report:", finalError);
+      const friendly = traducirError(finalError.message);
       // Si el mensaje es muy genérico, mostramos un hint pequeño para debug.
-      const hint = error.message ? ` (${error.message})` : "";
+      const hint = finalError.message ? ` (${finalError.message})` : "";
       setMsg(friendly + hint);
       return;
     }
@@ -188,7 +220,7 @@ export default function ReportePage() {
     setExisting({ prayer_minutes, chapters_count });
     try {
       localStorage.removeItem(lockKey(dateKey));
-    } catch { }
+    } catch {}
     notifyLockChanged();
     setMode("done");
     setMsg("✅ Guardado correctamente");
@@ -215,7 +247,7 @@ export default function ReportePage() {
           </div>
 
           {(() => {
-            const chapters = (existing?.chapters_count ?? existing?.bible_minutes ?? 0);
+            const chapters = existing?.chapters_count ?? existing?.bible_minutes ?? 0;
             return (
               <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
                 <div className="grid gap-2">
@@ -237,7 +269,7 @@ export default function ReportePage() {
                 onClick={() => {
                   try {
                     localStorage.removeItem(lockKey(dateKey));
-                  } catch { }
+                  } catch {}
                   notifyLockChanged();
                   loadExistingIntoForm();
                   setMode("editing");
@@ -254,9 +286,7 @@ export default function ReportePage() {
             </div>
           </>
         ) : (
-          <div className="text-xs text-white/50">
-            Ya reportaste hoy. (Elegiste no editar.)
-          </div>
+          <div className="text-xs text-white/50">Ya reportaste hoy. (Elegiste no editar.)</div>
         )}
       </div>
     );
@@ -285,7 +315,7 @@ export default function ReportePage() {
                     onClick={() => {
                       try {
                         localStorage.removeItem(lockKey(dateKey));
-                      } catch { }
+                      } catch {}
                       notifyLockChanged();
                       loadExistingIntoForm();
                       setMode("editing");
@@ -302,7 +332,7 @@ export default function ReportePage() {
                       // que la app no muestre la opción de reporte/editar otra vez.
                       try {
                         localStorage.setItem(lockKey(dateKey), "1");
-                      } catch { }
+                      } catch {}
                       notifyLockChanged();
                       setMode("doneLocked");
                       setMsg("");
@@ -330,9 +360,7 @@ export default function ReportePage() {
 
                 <Input type="date" value={today} disabled className="max-w-xs opacity-70 cursor-not-allowed" />
 
-                <div className="text-xs text-white/50">
-                  Solo puedes reportar el día de hoy.
-                </div>
+                <div className="text-xs text-white/50">Solo puedes reportar el día de hoy.</div>
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -374,7 +402,7 @@ export default function ReportePage() {
                             if (prayerH === "0") setPrayerH("");
                             try {
                               (e.target as HTMLInputElement).select();
-                            } catch { }
+                            } catch {}
                           }}
                           onChange={(e) => setPrayerH(onlyDigits(e.target.value))}
                           onBlur={() => {
@@ -394,7 +422,7 @@ export default function ReportePage() {
                             if (prayerM === "0") setPrayerM("");
                             try {
                               (e.target as HTMLInputElement).select();
-                            } catch { }
+                            } catch {}
                           }}
                           onChange={(e) => setPrayerM(onlyDigits(e.target.value))}
                           onBlur={() => {

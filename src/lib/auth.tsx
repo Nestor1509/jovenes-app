@@ -18,7 +18,7 @@ type AuthCtx = {
   session: any | null;
   profile: Profile | null;
   error: string;
-  refresh: () => Promise<void>;
+  refresh: (opts?: { hard?: boolean }) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -47,10 +47,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState("");
 
-  const refreshingRef = useRef(false);
+  // Evita ejecuciones concurrentes (focus + interval + auth events)
+  const inFlightRef = useRef(false);
+  // Para evitar setState después de un unmount
+  const mountedRef = useRef(true);
+
+  const safeSet = useCallback(<T,>(setter: (v: T) => void, v: T) => {
+    if (!mountedRef.current) return;
+    setter(v);
+  }, []);
 
   /**
-   * Carga o crea el perfil del usuario
+   * Carga o crea el perfil (con cache) - NO toca loading global por sí sola.
    */
   const ensureProfile = useCallback(async (user: SbUser) => {
     const userId = user.id;
@@ -66,7 +74,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .from("profiles")
             .select("id,name,role,group_id")
             .eq("id", userId)
-            .maybeSingle()
+            .maybeSingle(),
+          8000
         ),
       60_000
     );
@@ -74,18 +83,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (pErr) throw new Error(pErr.message);
 
     const existing = (p as Profile) ?? null;
-
     if (existing) {
       setCache(`profile:${userId}`, existing, 60_000);
       return existing;
     }
 
-    // Crear perfil automáticamente si no existe
-    const md = user.user_metadata ?? {};
+    // Auto-create si no existe (role youth)
+    const md = (user.user_metadata ?? {}) as any;
     const fallbackName =
       (md?.full_name as string | undefined) ||
       (md?.name as string | undefined) ||
-      (user.email ? user.email.split("@")[0] : "Joven");
+      (user.email ? String(user.email).split("@")[0] : "Joven");
 
     const { error: insErr } = await withTimeout(
       supabase.from("profiles").insert({
@@ -93,10 +101,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         name: String(fallbackName).trim() || "Joven",
         role: "youth",
         group_id: null,
-      })
+      }),
+      8000
     );
 
     if (insErr) {
+      // No rompemos el flujo: intentamos leer igual
+      // eslint-disable-next-line no-console
       console.warn("No se pudo crear perfil automáticamente:", insErr.message);
     }
 
@@ -105,139 +116,202 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .from("profiles")
         .select("id,name,role,group_id")
         .eq("id", userId)
-        .maybeSingle()
+        .maybeSingle(),
+      8000
     );
 
     if (p2Err) throw new Error(p2Err.message);
 
     const created = (p2 as Profile) ?? null;
-
     if (created) setCache(`profile:${userId}`, created, 60_000);
 
     return created;
   }, []);
 
   /**
-   * Carga fuerte (inicio de app o acción manual)
+   * Refresca sesión si expira pronto. NO pone loading=true.
+   * Útil para focus/visibility/interval.
    */
-  const refresh = useCallback(async () => {
-    if (refreshingRef.current) return;
-    refreshingRef.current = true;
-
-    setLoading(true);
-    setError("");
+  const refreshIfExpiringSoonSoft = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
 
     try {
       const { data: sess, error: sErr } = await withTimeout(
-        supabase.auth.getSession()
+        supabase.auth.getSession(),
+        8000
       );
-
       if (sErr) throw new Error(sErr.message);
 
       const s = sess.session ?? null;
-      setSession(s);
 
+      // No session
       if (!s?.user?.id) {
-        setProfile(null);
-        setLoading(false);
-        refreshingRef.current = false;
+        safeSet(setSession, null);
+        safeSet(setProfile, null);
+        safeSet(setError, "");
         return;
       }
 
-      const p = await ensureProfile(s.user as SbUser);
-      setProfile(p);
+      safeSet(setSession, s);
 
-      setLoading(false);
-    } catch (e: any) {
-      setProfile(null);
-      setError(e?.message || "No se pudo cargar tu perfil.");
-      setLoading(false);
-    }
+      const expMs = (s.expires_at ?? 0) * 1000;
+      const msLeft = expMs - Date.now();
 
-    refreshingRef.current = false;
-  }, [ensureProfile]);
+      // Si faltan <5 min, forzamos refresh del token
+      if (msLeft < 5 * 60 * 1000) {
+        const { data: refreshed, error: rErr } = await withTimeout(
+          supabase.auth.refreshSession(),
+          8000
+        );
+        if (rErr) throw new Error(rErr.message);
 
-  const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-  }, []);
+        const s2 = refreshed.session ?? null;
+        safeSet(setSession, s2);
 
-  useEffect(() => {
-    refresh();
-
-    /**
-     * Listener de cambios de auth
-     */
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, sess) => {
-      setSession(sess);
-
-      if (!sess?.user?.id) {
-        setProfile(null);
-        setError("");
-        setLoading(false);
-        return;
-      }
-
-      // No bloquear UI
-      setLoading(false);
-
-      try {
-        const p = await ensureProfile(sess.user as SbUser);
-        setProfile(p);
-        setError("");
-      } catch (e: any) {
-        setProfile(null);
-        setError(e?.message || "No se pudo cargar tu perfil.");
-      }
-    });
-
-    /**
-     * Rehidratar sesión al volver a la pestaña
-     */
-    const rehydrate = async () => {
-      if (refreshingRef.current) return;
-      refreshingRef.current = true;
-
-      try {
-        const { data } = await supabase.auth.getSession();
-        const s = data.session ?? null;
-
-        if (!s?.user?.id) {
-          setSession(null);
-          setProfile(null);
-          refreshingRef.current = false;
+        if (!s2?.user?.id) {
+          safeSet(setProfile, null);
+          safeSet(setError, "");
           return;
         }
 
-        setSession(s);
-
-        if (profile?.id !== s.user.id) {
+        // Si no tengo profile o cambió usuario, lo aseguro
+        if (!profile || profile.id !== s2.user.id) {
+          try {
+            const p = await ensureProfile(s2.user as SbUser);
+            safeSet(setProfile, p);
+            safeSet(setError, "");
+          } catch (e: any) {
+            safeSet(setProfile, null);
+            safeSet(setError, e?.message ? String(e.message) : "No se pudo cargar tu perfil.");
+          }
+        }
+      } else {
+        // Si no expira pronto: solo asegurar profile si falta
+        if (s.user?.id && (!profile || profile.id !== s.user.id)) {
           try {
             const p = await ensureProfile(s.user as SbUser);
-            setProfile(p);
+            safeSet(setProfile, p);
+            safeSet(setError, "");
+          } catch {
+            // silencioso
+          }
+        }
+      }
+    } catch {
+      // silencioso (no bloquea UI)
+    } finally {
+      inFlightRef.current = false;
+    }
+  }, [ensureProfile, profile, safeSet]);
+
+  /**
+   * Refresh "duro": usado para carga inicial y acciones manuales.
+   * hard=true => loading=true
+   */
+  const refresh = useCallback(
+    async (opts?: { hard?: boolean }) => {
+      const hard = opts?.hard !== false; // default true
+
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+
+      if (hard) safeSet(setLoading, true);
+      safeSet(setError, "");
+
+      try {
+        const { data: sess, error: sErr } = await withTimeout(
+          supabase.auth.getSession(),
+          8000
+        );
+        if (sErr) throw new Error(sErr.message);
+
+        const s = sess.session ?? null;
+        safeSet(setSession, s);
+
+        if (!s?.user?.id) {
+          safeSet(setProfile, null);
+          safeSet(setLoading, false);
+          return;
+        }
+
+        const p = await ensureProfile(s.user as SbUser);
+        safeSet(setProfile, p);
+        safeSet(setLoading, false);
+      } catch (e: any) {
+        const msg = e?.message ? String(e.message) : "No se pudo cargar tu perfil.";
+
+        // Caso típico de OAuth state inválido al volver atrás/abrir otra pestaña
+        if (msg.toLowerCase().includes("bad_oauth_state")) {
+          try {
+            await supabase.auth.signOut();
           } catch {}
         }
-      } catch {
-        // silencioso
+
+        safeSet(setProfile, null);
+        safeSet(setError, msg);
+        safeSet(setLoading, false);
+      } finally {
+        inFlightRef.current = false;
+      }
+    },
+    [ensureProfile, safeSet]
+  );
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    // state se actualizará por el listener
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    // 1) carga inicial fuerte
+    refresh({ hard: true });
+
+    // 2) escuchar cambios de auth (login/logout/refresh interno)
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, sess) => {
+      safeSet(setSession, sess);
+
+      if (!sess?.user?.id) {
+        safeSet(setProfile, null);
+        safeSet(setError, "");
+        safeSet(setLoading, false);
+        return;
       }
 
-      refreshingRef.current = false;
-    };
+      // No bloquear toda la UI por eventos de background
+      safeSet(setLoading, false);
 
+      try {
+        const p = await ensureProfile(sess.user as SbUser);
+        safeSet(setProfile, p);
+        safeSet(setError, "");
+      } catch (e: any) {
+        safeSet(setProfile, null);
+        safeSet(setError, e?.message ? String(e.message) : "No se pudo cargar tu perfil.");
+      }
+    });
+
+    // 3) rehidratar + refresh proactivo al volver a pestaña
     const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        rehydrate();
-      }
+      if (document.visibilityState === "visible") refreshIfExpiringSoonSoft();
     };
 
-    window.addEventListener("focus", rehydrate);
+    window.addEventListener("focus", refreshIfExpiringSoonSoft);
     document.addEventListener("visibilitychange", onVisible);
 
+    // 4) tick cada 2 minutos para evitar expiración silenciosa en móviles/segundo plano
+    const t = window.setInterval(refreshIfExpiringSoonSoft, 2 * 60 * 1000);
+
     return () => {
+      mountedRef.current = false;
       sub.subscription.unsubscribe();
-      window.removeEventListener("focus", rehydrate);
+      window.removeEventListener("focus", refreshIfExpiringSoonSoft);
       document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(t);
     };
-  }, [refresh, ensureProfile, profile?.id]);
+  }, [ensureProfile, refresh, refreshIfExpiringSoonSoft, safeSet]);
 
   const value = useMemo<AuthCtx>(
     () => ({

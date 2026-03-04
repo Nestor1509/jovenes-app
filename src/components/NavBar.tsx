@@ -396,9 +396,9 @@ export default function NavBar() {
     { href: "/", label: "Inicio", icon: Home, show: () => true },
     { href: "/reporte", label: "Reporte", icon: ClipboardList, show: (_r, has) => !!has && !hideReport },
     { href: "/mis-estadisticas", label: "Mis estadísticas", icon: BarChart3, show: (_r, has) => !!has },
-    { href: "/lider", label: "Líder", icon: Users, show: (r, has) => !!has && (r === "leader" || r === "admin") },
+    { href: "/lider", label: "Líder", icon: Users, show: (r, has) => !!has && (r === "leader") },
     { href: "/admin", label: "Admin", icon: Shield, show: (r, has) => !!has && r === "admin" },
-    { href: "/admin/general", label: "Todas", icon: BarChart3, show: (r, has) => !!has && r === "admin" },
+    { href: "/admin/general", label: "Todas", icon: BarChart3, show: (r, has) => !!has && r === "leader" },
   ];
 
   const visibleItems = items.filter((it) => it.show(role, hasSession));

@@ -131,7 +131,7 @@ export default function RankingPage() {
                 <Title>Ranking</Title>
               </div>
               <Subtitle>
-                {isAdmin ? "Vista de ranking (Admin)." : "Top de tu grupo para motivarnos 💪"}
+                {isAdmin ? "Vista de ranking (Admin)." : "Top de tu grupo 💪"}
               </Subtitle>
 
               <div className="mt-2 flex flex-wrap items-center gap-2">

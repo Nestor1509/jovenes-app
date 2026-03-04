@@ -341,17 +341,39 @@
 
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { getCache, setCache } from "@/lib/cache";
 import type { Profile } from "@/lib/useMyProfile";
 
 type AuthCtx = {
-  loading: boolean;          // ✅ solo “estado de sesión”
+  /**
+   * loading = “ya determiné si hay sesión”
+   * (NO bloquea por cargar profile)
+   */
+  loading: boolean;
   session: any | null;
-  profile: Profile | null;   // ✅ puede tardar sin bloquear
+  profile: Profile | null;
+
+  /**
+   * error = errores “de auth” (sesión)
+   * (si falla profile, no debería bloquear login)
+   */
   error: string;
-  refresh: () => Promise<void>;
+
+  /**
+   * refresh = recarga sesión + profile (modo “duro”)
+   * Úsalo si el usuario toca un botón “Reintentar” o similar.
+   */
+  refresh: (opts?: { hard?: boolean }) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -361,38 +383,59 @@ type SbUser = {
   user_metadata?: Record<string, any> | null;
 };
 
-function withTimeout<T>(p: PromiseLike<T>, ms = 6000, msg = "Tiempo de espera agotado. Revisa tu conexión."): Promise<T> {
-  return Promise.race([Promise.resolve(p), new Promise<T>((_, reject) => setTimeout(() => reject(new Error(msg)), ms))]);
+function withTimeout<T>(
+  p: PromiseLike<T>,
+  ms = 8000,
+  msg = "Tiempo de espera agotado. Revisa tu conexión o Supabase."
+): Promise<T> {
+  return Promise.race([
+    Promise.resolve(p),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(msg)), ms)),
+  ]);
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // solo sesión
   const [session, setSession] = useState<any | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState("");
 
-  // evita condiciones de carrera: si llega otra sesión, ignoramos resultados viejos
-  const activeUserIdRef = useRef<string | null>(null);
-  const inflightProfileRef = useRef<Promise<Profile | null> | null>(null);
+  const mountedRef = useRef(true);
 
-  const loadProfile = useCallback(async (user: SbUser): Promise<Profile | null> => {
+  // Evita “carreras” (focus + auth events + refresh manual)
+  const inFlightProfileRef = useRef<Promise<Profile | null> | null>(null);
+
+  const safe = useCallback(<T,>(fn: (v: T) => void, v: T) => {
+    if (!mountedRef.current) return;
+    fn(v);
+  }, []);
+
+  /**
+   * Carga/crea profile con cache. NO toca loading global.
+   */
+  const ensureProfile = useCallback(async (user: SbUser): Promise<Profile | null> => {
     const userId = user.id;
-    activeUserIdRef.current = userId;
 
+    // 1) Cache local
     const cachedProfile = getCache<Profile>(`profile:${userId}`);
     if (cachedProfile) return cachedProfile;
 
-    // dedupe: si ya hay un fetch en curso para este user, reutiliza
-    if (inflightProfileRef.current) return inflightProfileRef.current;
+    // 2) Si ya hay una carga en curso, reusa
+    if (inFlightProfileRef.current) return inFlightProfileRef.current;
 
-    inflightProfileRef.current = (async () => {
-      // 1) intentar leer
+    const run = (async () => {
+      // 2.1) Intentar leer
       const { data: p, error: pErr } = await withTimeout(
-        supabase.from("profiles").select("id,name,role,group_id").eq("id", userId).maybeSingle(),
-        6000
+        supabase
+          .from("profiles")
+          .select("id,name,role,group_id")
+          .eq("id", userId)
+          .maybeSingle(),
+        8000
       );
+
       if (pErr) throw new Error(pErr.message);
 
       const existing = (p as Profile) ?? null;
@@ -401,7 +444,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return existing;
       }
 
-      // 2) si no existe, intenta crearlo (sin bloquear el resto de la app)
+      // 2.2) Si no existe, intentar crear (youth)
       const md = (user.user_metadata ?? {}) as any;
       const fallbackName =
         (md?.full_name as string | undefined) ||
@@ -415,18 +458,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role: "youth",
           group_id: null,
         }),
-        6000
+        8000
       );
 
+      // Si falla (RLS, etc.), seguimos e intentamos leer otra vez
       if (insErr) {
-        // si falla por RLS u otro, seguimos y reintentamos leer
         // eslint-disable-next-line no-console
         console.warn("No se pudo crear perfil automáticamente:", insErr.message);
       }
 
       const { data: p2, error: p2Err } = await withTimeout(
-        supabase.from("profiles").select("id,name,role,group_id").eq("id", userId).maybeSingle(),
-        6000
+        supabase
+          .from("profiles")
+          .select("id,name,role,group_id")
+          .eq("id", userId)
+          .maybeSingle(),
+        8000
       );
       if (p2Err) throw new Error(p2Err.message);
 
@@ -435,142 +482,179 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return created;
     })();
 
+    inFlightProfileRef.current = run;
+
     try {
-      const result = await inflightProfileRef.current;
-      return result;
+      const res = await run;
+      return res;
     } finally {
-      inflightProfileRef.current = null;
+      // libera el candado
+      inFlightProfileRef.current = null;
     }
   }, []);
 
-  const refresh = useCallback(async () => {
-    setError("");
-    setLoading(true);
-
-    try {
-      const { data: sess, error: sErr } = await withTimeout(supabase.auth.getSession(), 6000);
-      if (sErr) throw new Error(sErr.message);
-
-      const s = sess.session ?? null;
-      setSession(s);
-
-      if (!s?.user?.id) {
-        activeUserIdRef.current = null;
-        setProfile(null);
-        setLoading(false);
-        return;
-      }
-
-      // ✅ importantísimo: ya hay sesión => quitamos loading YA
-      setLoading(false);
-
-      // perfil en background (sin bloquear UI)
-      const uid = s.user.id;
-      const p = await loadProfile(s.user as SbUser);
-
-      // si cambió el usuario mientras cargaba, ignora
-      if (activeUserIdRef.current !== uid) return;
-
-      setProfile(p);
-    } catch (e: any) {
-      // evita loops raros de OAuth
-      if (String(e?.message || "").toLowerCase().includes("bad_oauth_state")) {
-        await supabase.auth.signOut();
-      }
-
-      activeUserIdRef.current = null;
-      setSession(null);
-      setProfile(null);
-      setError(e?.message ? String(e.message) : "No se pudo cargar tu sesión.");
-      setLoading(false);
-    }
-  }, [loadProfile]);
-
-  const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-  }, []);
-
-  useEffect(() => {
-    // 1) inicial
-    refresh();
-
-    // 2) eventos de auth (login/logout/refresh token)
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, sess) => {
-      setError("");
-      setSession(sess);
-
-      if (!sess?.user?.id) {
-        activeUserIdRef.current = null;
-        setProfile(null);
-        setLoading(false);
-        return;
-      }
-
-      // ✅ no bloquees toda la app por el perfil
-      setLoading(false);
+  /**
+   * Refresh “duro” (opcional): recarga sesión y profile, y puede mostrar loading global.
+   */
+  const refresh = useCallback(
+    async (opts?: { hard?: boolean }) => {
+      const hard = opts?.hard !== false; // default true
+      if (hard) safe(setLoading, true);
+      safe(setError, "");
 
       try {
-        const uid = sess.user.id;
-        const p = await loadProfile(sess.user as SbUser);
-        if (activeUserIdRef.current !== uid) return;
-        setProfile(p);
-      } catch (e: any) {
-        setProfile(null);
-        setError(e?.message ? String(e.message) : "No se pudo cargar tu perfil.");
-      }
-    });
+        // getSession normalmente es instantáneo (rehidrata de storage)
+        const { data: sess, error: sErr } = await withTimeout(supabase.auth.getSession(), 8000);
+        if (sErr) throw new Error(sErr.message);
 
-    // 3) al volver a la pestaña: rehidrata sesión sin “loading infinito”
-    const onFocus = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        const s = data?.session ?? null;
+        const s = sess.session ?? null;
+        safe(setSession, s);
+
+        // ✅ ya sabemos si hay sesión: no bloqueamos más la UI
+        safe(setLoading, false);
 
         if (!s?.user?.id) {
-          activeUserIdRef.current = null;
-          setSession(null);
-          setProfile(null);
+          safe(setProfile, null);
           return;
         }
 
-        setSession(s);
-
-        // solo refresca si expira pronto
-        const expMs = (s.expires_at ?? 0) * 1000;
-        const soon = expMs - Date.now() < 2 * 60 * 1000;
-        if (soon) {
-          await refresh();
-        } else {
-          // si no hay profile aún, lo dispara
-          if (!profile) {
-            const uid = s.user.id;
-            const p = await loadProfile(s.user as SbUser);
-            if (activeUserIdRef.current !== uid) return;
-            setProfile(p);
-          }
+        // profile en background (sin volver loading)
+        try {
+          const p = await ensureProfile(s.user as SbUser);
+          safe(setProfile, p);
+        } catch (e: any) {
+          // Esto NO debe “romper el login”
+          safe(setProfile, null);
+          // Si quieres, puedes mostrar este error en una sección “Perfil”
+          // pero no lo metas como error global de auth si te molesta.
+          // safe(setError, e?.message ? String(e.message) : "No se pudo cargar tu perfil.");
         }
-      } catch {
-        // silencioso
+      } catch (e: any) {
+        const msg = e?.message ? String(e.message) : "No se pudo cargar tu sesión.";
+        // caso típico al volver atrás/varias pestañas con OAuth
+        if (msg.toLowerCase().includes("bad_oauth_state")) {
+          try {
+            await supabase.auth.signOut();
+          } catch {}
+        }
+        safe(setSession, null);
+        safe(setProfile, null);
+        safe(setError, msg);
+        safe(setLoading, false);
       }
-    };
+    },
+    [ensureProfile, safe]
+  );
 
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    // El listener onAuthStateChange se encarga de limpiar estado
+  }, []);
+
+  /**
+   * Re-sync “suave” al volver a la pestaña:
+   * - NO pone loading global
+   * - refresca token solo si expira pronto
+   */
+  const resyncOnFocus = useCallback(async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const s = data?.session ?? null;
+
+      // rehidrata UI
+      safe(setSession, s);
+
+      if (!s?.user?.id) {
+        safe(setProfile, null);
+        safe(setError, "");
+        return;
+      }
+
+      // refresca si expira pronto
+      const expMs = (s.expires_at ?? 0) * 1000;
+      const msLeft = expMs - Date.now();
+      const shouldRefresh = msLeft < 2 * 60 * 1000; // 2 min
+
+      if (shouldRefresh) {
+        const { data: refreshed, error: rErr } = await supabase.auth.refreshSession();
+        if (!rErr) {
+          const s2 = refreshed.session ?? null;
+          safe(setSession, s2);
+        }
+      }
+
+      // si falta profile, cargar (sin bloquear)
+      if (!profile || profile.id !== s.user.id) {
+        try {
+          const p = await ensureProfile(s.user as SbUser);
+          safe(setProfile, p);
+        } catch {
+          // silencioso
+        }
+      }
+    } catch {
+      // silencioso
+    }
+  }, [ensureProfile, profile, safe]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    // 1) Carga inicial (duro, pero soltamos loading apenas sabemos si hay sesión)
+    refresh({ hard: true });
+
+    // 2) Listener oficial supabase: login/logout/refresh internos
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, sess) => {
+      safe(setSession, sess ?? null);
+
+      // ✅ sesión determinada => no bloquees UI
+      safe(setLoading, false);
+
+      if (!sess?.user?.id) {
+        safe(setProfile, null);
+        safe(setError, "");
+        return;
+      }
+
+      // profile en background
+      try {
+        const p = await ensureProfile(sess.user as SbUser);
+        safe(setProfile, p);
+        safe(setError, ""); // limpia error auth si ya está OK
+      } catch {
+        // no tumbes la sesión por un fallo del profile
+        safe(setProfile, null);
+      }
+    });
+
+    // 3) Al volver a pestaña / focus
     const onVisible = () => {
-      if (document.visibilityState === "visible") onFocus();
+      if (document.visibilityState === "visible") resyncOnFocus();
     };
-
-    window.addEventListener("focus", onFocus);
+    window.addEventListener("focus", resyncOnFocus);
     document.addEventListener("visibilitychange", onVisible);
 
+    // 4) “Keep-alive” liviano (evita expiración silenciosa en móvil/background)
+    const t = window.setInterval(resyncOnFocus, 2 * 60 * 1000);
+
     return () => {
+      mountedRef.current = false;
       sub.subscription.unsubscribe();
-      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("focus", resyncOnFocus);
       document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(t);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refresh, loadProfile]);
+  }, [ensureProfile, refresh, resyncOnFocus, safe]);
 
   const value = useMemo<AuthCtx>(
-    () => ({ loading, session, profile, error, refresh, signOut }),
+    () => ({
+      loading,
+      session,
+      profile,
+      error,
+      refresh,
+      signOut,
+    }),
     [loading, session, profile, error, refresh, signOut]
   );
 

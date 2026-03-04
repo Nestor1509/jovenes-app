@@ -1,9 +1,16 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { getCache, setCache } from "@/lib/cache";
-import { cached } from "@/lib/cache";
+import { getCache, setCache, cached } from "@/lib/cache";
 import type { Profile } from "@/lib/useMyProfile";
 
 type AuthCtx = {
@@ -20,7 +27,6 @@ type SbUser = {
   email?: string | null;
   user_metadata?: Record<string, any> | null;
 };
-
 
 function withTimeout<T>(
   p: PromiseLike<T>,
@@ -41,13 +47,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState("");
 
+  const refreshingRef = useRef(false);
+
+  /**
+   * Carga o crea el perfil del usuario
+   */
   const ensureProfile = useCallback(async (user: SbUser) => {
     const userId = user.id;
+
     const cachedProfile = getCache<Profile>(`profile:${userId}`);
     if (cachedProfile) return cachedProfile;
-    if (!cached) throw new Error("Cache function is not available.");
 
-    // 1) Try to load
     const { data: p, error: pErr } = await cached(
       `profile:${userId}`,
       () =>
@@ -56,25 +66,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .from("profiles")
             .select("id,name,role,group_id")
             .eq("id", userId)
-            .maybeSingle(),
-          8000
+            .maybeSingle()
         ),
       60_000
     );
+
     if (pErr) throw new Error(pErr.message);
 
     const existing = (p as Profile) ?? null;
+
     if (existing) {
       setCache(`profile:${userId}`, existing, 60_000);
       return existing;
     }
 
-    // 2) If missing, auto-create as "youth" (Joven)
-    const md = (user.user_metadata ?? {}) as any;
+    // Crear perfil automáticamente si no existe
+    const md = user.user_metadata ?? {};
     const fallbackName =
       (md?.full_name as string | undefined) ||
       (md?.name as string | undefined) ||
-      (user.email ? String(user.email).split("@")[0] : "Joven");
+      (user.email ? user.email.split("@")[0] : "Joven");
 
     const { error: insErr } = await withTimeout(
       supabase.from("profiles").insert({
@@ -82,31 +93,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         name: String(fallbackName).trim() || "Joven",
         role: "youth",
         group_id: null,
-      }),
-      8000
+      })
     );
 
-    // If insert fails (e.g., RLS not applied yet), we still try to read and continue.
     if (insErr) {
-      // eslint-disable-next-line no-console
       console.warn("No se pudo crear perfil automáticamente:", insErr.message);
     }
 
     const { data: p2, error: p2Err } = await withTimeout(
-      supabase.from("profiles").select("id,name,role,group_id").eq("id", userId).maybeSingle(),
-      8000
+      supabase
+        .from("profiles")
+        .select("id,name,role,group_id")
+        .eq("id", userId)
+        .maybeSingle()
     );
+
     if (p2Err) throw new Error(p2Err.message);
+
     const created = (p2 as Profile) ?? null;
+
     if (created) setCache(`profile:${userId}`, created, 60_000);
+
     return created;
   }, []);
 
+  /**
+   * Carga fuerte (inicio de app o acción manual)
+   */
   const refresh = useCallback(async () => {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
+
     setLoading(true);
     setError("");
+
     try {
-      const { data: sess, error: sErr } = await withTimeout(supabase.auth.getSession(), 8000);
+      const { data: sess, error: sErr } = await withTimeout(
+        supabase.auth.getSession()
+      );
+
       if (sErr) throw new Error(sErr.message);
 
       const s = sess.session ?? null;
@@ -115,92 +140,114 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!s?.user?.id) {
         setProfile(null);
         setLoading(false);
+        refreshingRef.current = false;
         return;
       }
 
       const p = await ensureProfile(s.user as SbUser);
       setProfile(p);
+
       setLoading(false);
     } catch (e: any) {
-      if (String(e?.message || "").toLowerCase().includes("bad_oauth_state")) {
-        await supabase.auth.signOut();
-      }
       setProfile(null);
-      setError(e?.message ? String(e.message) : "No se pudo cargar tu perfil.");
+      setError(e?.message || "No se pudo cargar tu perfil.");
       setLoading(false);
     }
+
+    refreshingRef.current = false;
   }, [ensureProfile]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-    // state will update via listener
   }, []);
 
   useEffect(() => {
-    // 1) initial load
     refresh();
 
-    // 2) keep in sync without refetching on every page
+    /**
+     * Listener de cambios de auth
+     */
     const { data: sub } = supabase.auth.onAuthStateChange(async (_evt, sess) => {
       setSession(sess);
+
       if (!sess?.user?.id) {
         setProfile(null);
+        setError("");
         setLoading(false);
         return;
       }
-      setLoading(true);
-      setError("");
+
+      // No bloquear UI
+      setLoading(false);
+
       try {
         const p = await ensureProfile(sess.user as SbUser);
         setProfile(p);
+        setError("");
       } catch (e: any) {
         setProfile(null);
-        setError(e?.message ? String(e.message) : "No se pudo cargar tu perfil.");
-      } finally {
-        setLoading(false);
+        setError(e?.message || "No se pudo cargar tu perfil.");
       }
     });
 
-    // ✅ 3) Re-sync when tab becomes active again (fix "needs reload")
-    const onFocus = async () => {
+    /**
+     * Rehidratar sesión al volver a la pestaña
+     */
+    const rehydrate = async () => {
+      if (refreshingRef.current) return;
+      refreshingRef.current = true;
+
       try {
         const { data } = await supabase.auth.getSession();
-        const s = data?.session ?? null;
+        const s = data.session ?? null;
 
         if (!s?.user?.id) {
           setSession(null);
           setProfile(null);
+          refreshingRef.current = false;
           return;
         }
 
-        // opcional: refrescar solo si expira pronto (evita parpadeo de loading)
-        const exp = (s.expires_at ?? 0) * 1000;
-        const soon = exp - Date.now() < 2 * 60 * 1000; // 2 minutos
+        setSession(s);
 
-        if (soon) await refresh();
-        else setSession(s); // al menos rehidrata el estado
+        if (profile?.id !== s.user.id) {
+          try {
+            const p = await ensureProfile(s.user as SbUser);
+            setProfile(p);
+          } catch {}
+        }
       } catch {
         // silencioso
       }
+
+      refreshingRef.current = false;
     };
 
     const onVisible = () => {
-      if (document.visibilityState === "visible") onFocus();
+      if (document.visibilityState === "visible") {
+        rehydrate();
+      }
     };
 
-    window.addEventListener("focus", onFocus);
+    window.addEventListener("focus", rehydrate);
     document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       sub.subscription.unsubscribe();
-      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("focus", rehydrate);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [refresh, ensureProfile]);
-
+  }, [refresh, ensureProfile, profile?.id]);
 
   const value = useMemo<AuthCtx>(
-    () => ({ loading, session, profile, error, refresh, signOut }),
+    () => ({
+      loading,
+      session,
+      profile,
+      error,
+      refresh,
+      signOut,
+    }),
     [loading, session, profile, error, refresh, signOut]
   );
 

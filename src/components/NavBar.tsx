@@ -295,6 +295,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Trophy } from "lucide-react";
 
 function roleLabel(role?: string) {
   if (!role) return "";
@@ -399,6 +400,7 @@ export default function NavBar() {
     { href: "/lider", label: "Líder", icon: Users, show: (r, has) => !!has && (r === "leader") },
     { href: "/admin", label: "Admin", icon: Shield, show: (r, has) => !!has && r === "admin" },
     { href: "/admin/general", label: "Todas", icon: BarChart3, show: (r, has) => !!has && r === "leader" },
+    { href: "/ranking", label: "Ranking", icon: Trophy, show: (_r, has) => !!has },
   ];
 
   const visibleItems = items.filter((it) => it.show(role, hasSession));

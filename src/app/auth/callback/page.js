@@ -12,29 +12,60 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     let cancelled = false;
 
+    async function finishSuccess() {
+      if (cancelled) return;
+      setMsg("✅ Listo. Redirigiendo…");
+      // pequeño delay para que el usuario vea el OK (opcional)
+      setTimeout(() => {
+        if (!cancelled) router.replace("/");
+      }, 300);
+    }
+
+    async function finishError() {
+      if (cancelled) return;
+      setMsg("No se pudo completar el inicio de sesión. Intenta de nuevo.");
+    }
+
     async function run() {
       try {
-        // Supabase OAuth (PKCE): el parámetro "code" viene en la URL.
         const url = new URL(window.location.href);
         const code = url.searchParams.get("code");
 
+        // Si viene "code", intentamos el exchange (PKCE)
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) throw error;
+
+          // Limpia la URL para evitar re-ejecutar el exchange en refresh/back
+          url.searchParams.delete("code");
+          window.history.replaceState({}, document.title, url.toString());
+
+          // OJO: aunque haya error, a veces la sesión ya quedó lista.
+          if (error) {
+            const { data } = await supabase.auth.getSession();
+            if (data?.session) return finishSuccess();
+            throw error;
+          }
         }
 
-        if (!cancelled) {
-          setMsg("✅ Listo. Redirigiendo…");
-          router.replace("/");
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setMsg("No se pudo completar el inicio de sesión. Intenta de nuevo.");
-        }
+        // Si no hay code (o ya fue procesado), igual verificamos sesión
+        const { data } = await supabase.auth.getSession();
+        if (data?.session) return finishSuccess();
+
+        // No hay sesión => error real
+        return finishError();
+      } catch (_e) {
+        // Incluso si hubo excepción, re-verificamos sesión por si ya se guardó
+        try {
+          const { data } = await supabase.auth.getSession();
+          if (data?.session) return finishSuccess();
+        } catch {}
+
+        return finishError();
       }
     }
 
     run();
+
     return () => {
       cancelled = true;
     };

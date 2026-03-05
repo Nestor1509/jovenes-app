@@ -8,7 +8,18 @@ type Props = React.HTMLAttributes<HTMLDivElement>;
 type PageFadeProps = HTMLMotionProps<"div">;
 
 export function Container({ className, ...props }: Props) {
-  return <div className={cn("mx-auto w-full max-w-6xl px-4", className)} {...props} />;
+  return (
+    <div
+      className={cn(
+        // ✅ clave para evitar el “corte” a la derecha en móvil:
+        // - overflow-x-hidden: corta cualquier 1px/2px que se salga por fonts, transforms, etc.
+        // - min-w-0: permite truncar hijos en flex/grid sin empujar ancho
+        "mx-auto w-full max-w-6xl px-4 overflow-x-hidden min-w-0",
+        className
+      )}
+      {...props}
+    />
+  );
 }
 
 export function Card({
@@ -20,10 +31,16 @@ export function Card({
 
   return (
     <motion.div
+      // Hover no existe en móvil, pero no hace daño en desktop.
+      // ✅ Evitamos que una micro-traslación cause overflow visual:
       whileHover={{ y: -2 }}
       transition={{ type: "spring", stiffness: 260, damping: 22 }}
       className={cn(
-        "glass rounded-2xl p-5 shadow-glow transition will-change-transform hover:bg-white/[0.07] hover:border-white/15",
+        // ✅ overflow-hidden evita que brillos/gradientes internos se “salgan”
+        "glass rounded-2xl p-5 shadow-glow transition will-change-transform overflow-hidden",
+        "hover:bg-white/[0.07] hover:border-white/15",
+        // ✅ min-w-0 ayuda a truncar contenido interno en layouts flex
+        "min-w-0",
         className
       )}
       {...safeProps}
@@ -35,7 +52,15 @@ export function Card({
 
 export function Title({ className, children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <h1 className={cn("text-2xl font-semibold tracking-tight", className)} {...props}>
+    <h1
+      className={cn(
+        "text-2xl font-semibold tracking-tight",
+        // ✅ protege de textos largos en móvil
+        "min-w-0 break-words",
+        className
+      )}
+      {...props}
+    >
       {children}
     </h1>
   );
@@ -43,7 +68,15 @@ export function Title({ className, children, ...props }: React.HTMLAttributes<HT
 
 export function Subtitle({ className, children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn("text-sm text-white/70 leading-relaxed", className)} {...props}>
+    <p
+      className={cn(
+        "text-sm text-white/70 leading-relaxed",
+        // ✅ protege de textos largos en móvil
+        "min-w-0 break-words",
+        className
+      )}
+      {...props}
+    >
       {children}
     </p>
   );
@@ -56,11 +89,12 @@ export function Button({
   variant = "primary",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: BtnVariant }) {
-  // ✅ FIX: había un typo enorme en la clase (ring-offset-0-semibold)
   const base =
     "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold outline-none " +
     "transition focus-visible:ring-2 focus-visible:ring-amber-400/60 focus-visible:ring-offset-0 " +
-    "disabled:opacity-60 disabled:cursor-not-allowed";
+    "disabled:opacity-60 disabled:cursor-not-allowed " +
+    // ✅ evita empujar layout por contenido raro
+    "min-w-0";
 
   const styles: Record<BtnVariant, string> = {
     primary: "btn-primary text-zinc-950",
@@ -83,13 +117,13 @@ export function Button({
 }
 
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn("input", className)} {...props} />;
+  return <input className={cn("input min-w-0", className)} {...props} />;
 }
 
 export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={cn("input pr-8 transition-colors hover:border-white/20 focus:border-amber-400/40", className)}
+      className={cn("input pr-8 transition-colors hover:border-white/20 focus:border-amber-400/40 min-w-0", className)}
       {...props}
     />
   );
@@ -101,7 +135,8 @@ export function PageFade({ className, children, ...props }: PageFadeProps) {
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.22 }}
-      className={className}
+      // ✅ por si PageFade envuelve grids/flex
+      className={cn("min-w-0", className)}
       {...props}
     >
       {children}
@@ -111,17 +146,17 @@ export function PageFade({ className, children, ...props }: PageFadeProps) {
 
 export function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="glass rounded-2xl p-4 shadow-soft">
-      <div className="text-xs text-white/60">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tracking-tight">{value}</div>
+    <div className="glass rounded-2xl p-4 shadow-soft min-w-0 overflow-hidden">
+      <div className="text-xs text-white/60 truncate">{label}</div>
+      <div className="mt-1 text-2xl font-semibold tracking-tight truncate">{value}</div>
     </div>
   );
 }
 
 /**
- * ✅ Badge “a prueba de móvil”:
- * - Evita overflow y empujes del layout
- * - Permite truncar texto si el contenedor es pequeño
+ * ✅ Badge anti-overflow:
+ * - No empuja el layout
+ * - Trunca contenido si hace falta
  */
 export function Badge({
   children,
@@ -137,7 +172,6 @@ export function Badge({
       title={title}
       className={cn(
         "inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/80",
-        // ✅ clave para que NO reviente el layout:
         "min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap",
         className
       )}
@@ -166,7 +200,7 @@ export function EmptyState({
 }) {
   return (
     <Card className="p-6">
-      <div className="space-y-2">
+      <div className="space-y-2 min-w-0">
         <Title className="text-lg">{title}</Title>
         <Subtitle>{description}</Subtitle>
         {action ? <div className="pt-2">{action}</div> : null}

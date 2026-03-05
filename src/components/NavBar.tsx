@@ -1,3 +1,4 @@
+// src/components/NavBar.tsx
 "use client";
 
 import Link from "next/link";
@@ -73,6 +74,7 @@ export default function NavBar() {
     setMobileOpen(false);
   }, [pathname]);
 
+  // Evita scroll del fondo cuando el drawer está abierto
   useEffect(() => {
     if (typeof document === "undefined") return;
     const prevHtml = document.documentElement.style.overflow;
@@ -121,15 +123,14 @@ export default function NavBar() {
   const visibleItems = items.filter((it) => it.show(role, hasSession));
 
   return (
-    <div className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/95 md:supports-[backdrop-filter]:bg-zinc-950/70 md:supports-[backdrop-filter]:backdrop-blur">
-      {/* ✅ overflow-x-hidden aquí evita el “corte” del layout en móvil */}
-      <Container className="flex items-center justify-between py-3 overflow-x-hidden">
+    <div className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/95 supports-[backdrop-filter]:bg-zinc-950/70 supports-[backdrop-filter]:backdrop-blur">
+      {/* ✅ NO overflow-x-hidden acá: eso recorta brillos/1px y se ve feo */}
+      <Container className="flex items-center justify-between py-3">
         <Link href="/" className="group flex items-center gap-3 select-none min-w-0" prefetch>
           <div className="h-10 w-10 rounded-2xl glass grid place-items-center shadow-soft text-sm font-semibold shrink-0">
             MA
           </div>
 
-          {/* ✅ min-w-0 + truncate real */}
           <div className="leading-tight min-w-0">
             <div className="font-semibold tracking-tight truncate">Ministerio Águilas</div>
             <div className="text-xs text-white/60 truncate">Casa de Dios Cruzada Cristiana</div>
@@ -171,26 +172,20 @@ export default function NavBar() {
 
         {/* Mobile */}
         <div className="flex items-center gap-2 md:hidden shrink-0">
-          <Button
-            variant="ghost"
-            onClick={() => setMobileOpen(true)}
-            className="px-3"
-            aria-label="Abrir menú"
-            title="Menú"
-          >
+          <Button variant="ghost" onClick={() => setMobileOpen(true)} className="px-3" aria-label="Abrir menú" title="Menú">
             <Menu size={18} />
           </Button>
         </div>
       </Container>
 
-      {/* ✅ también overflow-x-hidden aquí */}
-      <Container className="pb-2 overflow-x-hidden">
+      <Container className="pb-2">
         <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
           <div className="flex items-center justify-between gap-3 min-w-0">
             <Badge className="gap-2 min-w-0 max-w-full">
               <span className="h-2 w-2 rounded-full bg-emerald-400/80 shrink-0" />
               <span className="truncate min-w-0">{userLine}</span>
             </Badge>
+
             <div className="text-xs text-white/50 hidden md:block shrink-0">
               {loading && !hasSession ? "Verificando sesión…" : hasSession ? "Sesión activa" : "Sin sesión"}
             </div>
@@ -213,7 +208,7 @@ export default function NavBar() {
             />
             <motion.aside
               key="drawer"
-              className="fixed right-0 top-0 z-[70] h-full w-[88vw] max-w-sm border-l border-white/10 bg-zinc-950 overflow-x-hidden"
+              className="fixed right-0 top-0 z-[70] h-full w-[88vw] max-w-sm border-l border-white/10 bg-zinc-950"
               initial={{ x: 80, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: 80, opacity: 0 }}

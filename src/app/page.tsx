@@ -98,9 +98,20 @@ function shortEmail(email?: string | null) {
 }
 
 /** Badge seguro: no empuja layout y en chips NO se comprime */
-function MiniBadge({ children, title }: { children: React.ReactNode; title?: string }) {
+function MiniBadge({
+  children,
+  title,
+  className = "",
+}: {
+  children: React.ReactNode;
+  title?: string;
+  className?: string;
+}) {
   return (
-    <Badge title={title} className="shrink-0 min-w-0 max-w-full truncate">
+    <Badge
+      title={title}
+      className={`min-w-0 max-w-full truncate ${className}`}
+    >
       {children}
     </Badge>
   );

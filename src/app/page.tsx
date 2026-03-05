@@ -97,7 +97,7 @@ function shortEmail(email?: string | null) {
   return u.length > 16 ? `${u.slice(0, 8)}…@${d}` : email;
 }
 
-/** Badge seguro: no empuja layout y en chips NO se comprime */
+/** Badge seguro: no empuja layout por defecto */
 function MiniBadge({
   children,
   title,
@@ -108,10 +108,7 @@ function MiniBadge({
   className?: string;
 }) {
   return (
-    <Badge
-      title={title}
-      className={`min-w-0 max-w-full truncate ${className}`}
-    >
+    <Badge title={title} className={`min-w-0 max-w-full truncate ${className}`}>
       {children}
     </Badge>
   );
@@ -120,7 +117,7 @@ function MiniBadge({
 /**
  * QuickAction:
  * - Mobile-first (apilado)
- * - NO overflow: min-w-0 + truncate + rightNode capado
+ * - NO overflow: min-w-0 + truncate
  */
 function QuickAction({
   href,
@@ -156,15 +153,10 @@ function QuickAction({
           </div>
         </div>
 
-        {/* ✅ capado real del rightNode en móvil */}
         <div className="flex items-center gap-2 w-full sm:w-auto min-w-0 sm:justify-end">
-  {/* rightNode ocupa el espacio disponible y SI puede truncar */}
-  <div className="flex-1 min-w-0 sm:flex-none sm:min-w-[unset] sm:max-w-none">
-    {rightNode}
-  </div>
-
-  <ArrowRight size={18} className="opacity-60 shrink-0" />
-</div>
+          <div className="flex-1 min-w-0 sm:flex-none sm:min-w-[unset] sm:max-w-none">{rightNode}</div>
+          <ArrowRight size={18} className="opacity-60 shrink-0" />
+        </div>
       </div>
     </div>
   );
@@ -195,7 +187,7 @@ export default function Home() {
 
   const hasSession = !!sessionEmail && !!userId;
 
-  // ✅ Bootstrap estable (con override del listener)
+  // ✅ Bootstrap estable
   useEffect(() => {
     let mounted = true;
 
@@ -203,39 +195,46 @@ export default function Home() {
       setLoading(true);
       setMsg("");
 
-      const sess = sessionOverride ?? (await supabase.auth.getSession()).data.session;
+      try {
+        const sess = sessionOverride ?? (await supabase.auth.getSession()).data.session;
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      const email = sess?.user?.email ?? null;
-      const uid = sess?.user?.id ?? null;
+        const email = sess?.user?.email ?? null;
+        const uid = sess?.user?.id ?? null;
 
-      setSessionEmail(email);
-      setUserId(uid);
+        setSessionEmail(email);
+        setUserId(uid);
 
-      if (!uid) {
+        if (!uid) {
+          setProfile(null);
+          setReports([]);
+          setRankPosWeek(null);
+          return;
+        }
+
+        const [pRes, rRes] = await Promise.all([
+          supabase.from("profiles").select("name, role, group_id").eq("id", uid).single(),
+          supabase
+            .from("reports")
+            .select("report_date, bible_minutes, prayer_minutes")
+            .eq("user_id", uid)
+            .order("report_date", { ascending: false })
+            .limit(180),
+        ]);
+
+        if (!mounted) return;
+
+        setProfile((pRes.data ?? null) as Profile | null);
+        setReports((rRes.data ?? []) as ReportRow[]);
+      } catch {
+        if (!mounted) return;
         setProfile(null);
         setReports([]);
         setRankPosWeek(null);
-        setLoading(false);
-        return;
+      } finally {
+        if (mounted) setLoading(false);
       }
-
-      const [pRes, rRes] = await Promise.all([
-        supabase.from("profiles").select("name, role, group_id").eq("id", uid).single(),
-        supabase
-          .from("reports")
-          .select("report_date, bible_minutes, prayer_minutes")
-          .eq("user_id", uid)
-          .order("report_date", { ascending: false })
-          .limit(180),
-      ]);
-
-      if (!mounted) return;
-
-      setProfile((pRes.data ?? null) as Profile | null);
-      setReports((rRes.data ?? []) as ReportRow[]);
-      setLoading(false);
     }
 
     bootstrap();
@@ -427,8 +426,8 @@ export default function Home() {
         ) : (
           <div className="grid gap-4 sm:gap-6 md:grid-cols-2 items-start">
             {/* LEFT */}
-            <Card className="relative">
-              {/* ✅ NO overflow-hidden: no cortar glow */}
+            {/* ✅ FIX OVERFLOW DERECHA: recorta solo en X (glows no empujan viewport) */}
+            <Card className="relative overflow-x-clip overflow-y-visible">
               <div className="absolute -top-24 -right-24 h-56 w-56 rounded-full bg-white/10 blur-2xl pointer-events-none" />
               <div className="absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-white/10 blur-2xl pointer-events-none" />
 
@@ -476,9 +475,9 @@ export default function Home() {
                             : "Aún no has registrado tu reporte de hoy. Toma 30 segundos y suma a tu racha 🔥"}
                         </div>
 
-                        {/* ✅ Chips: no rompen layout, scroll suave */}
+                        {/* Chips con scroll */}
                         <div className="mt-3 flex gap-2 overflow-x-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                          <MiniBadge title="Racha">
+                          <MiniBadge title="Racha" className="shrink-0">
                             <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                               <Flame size={12} className="opacity-80 shrink-0" />
                               <span className="text-white/80">Racha:</span>
@@ -487,7 +486,7 @@ export default function Home() {
                             </span>
                           </MiniBadge>
 
-                          <MiniBadge title="Totales de la semana">
+                          <MiniBadge title="Totales de la semana" className="shrink-0">
                             <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                               <span className="text-white/80">Semana:</span>
                               <span className="font-semibold text-white">
@@ -497,7 +496,7 @@ export default function Home() {
                           </MiniBadge>
 
                           {typeof rankPosWeek === "number" ? (
-                            <MiniBadge title="Tu puesto semanal">
+                            <MiniBadge title="Tu puesto semanal" className="shrink-0">
                               <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                                 <Trophy size={12} className="opacity-80 shrink-0" />
                                 <span className="text-white/80">Puesto:</span>
@@ -520,9 +519,10 @@ export default function Home() {
                       subtitle={hasTodayReport ? "Reporte de hoy registrado" : "Te falta el reporte de hoy"}
                       icon={<ClipboardList size={18} className="opacity-85" />}
                       rightNode={
-                        <MiniBadge title={today}>
-                          <span className="inline-flex items-center gap-1.5 min-w-0">
-                            {hasTodayReport ? "✅" : "⏳"} <span className="truncate">{today}</span>
+                        <MiniBadge title={today} className="w-full">
+                          <span className="inline-flex items-center gap-1.5 min-w-0 w-full">
+                            <span className="shrink-0">{hasTodayReport ? "✅" : "⏳"}</span>
+                            <span className="truncate min-w-0 block">{today}</span>
                           </span>
                         </MiniBadge>
                       }
@@ -565,9 +565,7 @@ export default function Home() {
                     />
                   </div>
 
-                  <div className="mt-1 text-[12px] text-white/45">
-                    Tip: registra aunque sea poco. La constancia es lo que más suma.
-                  </div>
+                  <div className="mt-1 text-[12px] text-white/45">Tip: registra aunque sea poco. La constancia es lo que más suma.</div>
                 </div>
               ) : (
                 <div className="mt-5 grid gap-3 text-sm text-white/80">
@@ -632,9 +630,8 @@ export default function Home() {
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-4 min-w-0">
                     <div className="text-xs text-white/60">Semana (vs anterior)</div>
 
-                    {/* ✅ chips scroll sin -mx (no rompe ancho) */}
                     <div className="mt-2 flex gap-2 overflow-x-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                      <MiniBadge title="Capítulos">
+                      <MiniBadge title="Capítulos" className="shrink-0">
                         <span className="inline-flex items-center gap-2 whitespace-nowrap">
                           <span className="text-white/70">Cap:</span>
                           <span className="font-semibold text-white">{formatearCapitulos(weekTotals.bible)}</span>
@@ -644,7 +641,7 @@ export default function Home() {
                         </span>
                       </MiniBadge>
 
-                      <MiniBadge title="Oración">
+                      <MiniBadge title="Oración" className="shrink-0">
                         <span className="inline-flex items-center gap-2 whitespace-nowrap">
                           <span className="text-white/70">Oración:</span>
                           <span className="font-semibold text-white">{formatearMinutos(weekTotals.prayer)}</span>
@@ -654,7 +651,7 @@ export default function Home() {
                         </span>
                       </MiniBadge>
 
-                      <MiniBadge title="Reportes">
+                      <MiniBadge title="Reportes" className="shrink-0">
                         <span className="inline-flex items-center gap-2 whitespace-nowrap">
                           <span className="text-white/70">Reportes:</span>
                           <span className="font-semibold text-white">{weekTotals.count}</span>

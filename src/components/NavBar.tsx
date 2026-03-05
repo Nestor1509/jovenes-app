@@ -123,75 +123,82 @@ export default function NavBar() {
   const visibleItems = items.filter((it) => it.show(role, hasSession));
 
   return (
-    <div className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/95 supports-[backdrop-filter]:bg-zinc-950/70 supports-[backdrop-filter]:backdrop-blur">
-      {/* ✅ NO overflow-x-hidden acá: eso recorta brillos/1px y se ve feo */}
-      <Container className="flex items-center justify-between py-3">
-        <Link href="/" className="group flex items-center gap-3 select-none min-w-0" prefetch>
-          <div className="h-10 w-10 rounded-2xl glass grid place-items-center shadow-soft text-sm font-semibold shrink-0">
-            MA
-          </div>
+    <>
+      {/* ✅ Un solo sticky: header + userLine (así NO tapa contenido / no cambia de alto raro) */}
+      <div className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/95 supports-[backdrop-filter]:bg-zinc-950/70 supports-[backdrop-filter]:backdrop-blur">
+        {/* safe-area para notch */}
+        <div className="pt-[env(safe-area-inset-top)]" />
 
-          <div className="leading-tight min-w-0">
-            <div className="font-semibold tracking-tight truncate">Ministerio Águilas</div>
-            <div className="text-xs text-white/60 truncate">Casa de Dios Cruzada Cristiana</div>
-          </div>
-        </Link>
-
-        {/* Desktop nav */}
-        <div className="hidden md:flex items-center gap-2 shrink-0">
-          {visibleItems.map((it) => {
-            const active = pathname === it.href || pathname.startsWith(it.href + "/");
-            const Icon = it.icon;
-            return (
-              <Link
-                key={it.href}
-                href={it.href}
-                className={[
-                  "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition border",
-                  active ? "bg-white/10 border-white/15" : "bg-white/5 border-white/10 hover:bg-white/10",
-                ].join(" ")}
-                prefetch
-              >
-                <Icon size={16} className={active ? "opacity-100" : "opacity-80"} />
-                <span>{it.label}</span>
-              </Link>
-            );
-          })}
-
-          {hasSession && (
-            <button
-              onClick={salir}
-              className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm border border-white/10 bg-white/5 hover:bg-white/10 transition"
-              title="Cerrar sesión"
-            >
-              <LogOut size={16} className="opacity-80" />
-              <span>Salir</span>
-            </button>
-          )}
-        </div>
-
-        {/* Mobile */}
-        <div className="flex items-center gap-2 md:hidden shrink-0">
-          <Button variant="ghost" onClick={() => setMobileOpen(true)} className="px-3" aria-label="Abrir menú" title="Menú">
-            <Menu size={18} />
-          </Button>
-        </div>
-      </Container>
-
-      <Container className="pb-2">
-        <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
-          <div className="flex items-center justify-between gap-3 min-w-0">
-            <Badge className="gap-2 min-w-0 max-w-full">
-              <span className="h-2 w-2 rounded-full bg-emerald-400/80 shrink-0" />
-              <span className="truncate min-w-0">{userLine}</span>
-            </Badge>
-
-            <div className="text-xs text-white/50 hidden md:block shrink-0">
-              {loading && !hasSession ? "Verificando sesión…" : hasSession ? "Sesión activa" : "Sin sesión"}
+        {/* Header principal */}
+        <Container className="flex items-center justify-between py-3">
+          <Link href="/" className="group flex items-center gap-3 select-none min-w-0" prefetch>
+            <div className="h-10 w-10 rounded-2xl glass grid place-items-center shadow-soft text-sm font-semibold shrink-0">
+              MA
             </div>
+
+            <div className="leading-tight min-w-0">
+              <div className="font-semibold tracking-tight truncate">Ministerio Águilas</div>
+              <div className="text-xs text-white/60 truncate">Casa de Dios Cruzada Cristiana</div>
+            </div>
+          </Link>
+
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-2 shrink-0">
+            {visibleItems.map((it) => {
+              const active = pathname === it.href || pathname.startsWith(it.href + "/");
+              const Icon = it.icon;
+              return (
+                <Link
+                  key={it.href}
+                  href={it.href}
+                  className={[
+                    "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition border",
+                    active ? "bg-white/10 border-white/15" : "bg-white/5 border-white/10 hover:bg-white/10",
+                  ].join(" ")}
+                  prefetch
+                >
+                  <Icon size={16} className={active ? "opacity-100" : "opacity-80"} />
+                  <span>{it.label}</span>
+                </Link>
+              );
+            })}
+
+            {hasSession && (
+              <button
+                onClick={salir}
+                className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm border border-white/10 bg-white/5 hover:bg-white/10 transition"
+                title="Cerrar sesión"
+              >
+                <LogOut size={16} className="opacity-80" />
+                <span>Salir</span>
+              </button>
+            )}
           </div>
-        </motion.div>
-      </Container>
+
+          {/* Mobile */}
+          <div className="flex items-center gap-2 md:hidden shrink-0">
+            <Button variant="ghost" onClick={() => setMobileOpen(true)} className="px-3" aria-label="Abrir menú" title="Menú">
+              <Menu size={18} />
+            </Button>
+          </div>
+        </Container>
+
+        {/* ✅ userLine dentro del sticky */}
+        <Container className="pb-2">
+          <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
+            <div className="flex items-center justify-between gap-3 min-w-0">
+              <Badge className="gap-2 min-w-0 max-w-full">
+                <span className="h-2 w-2 rounded-full bg-emerald-400/80 shrink-0" />
+                <span className="truncate min-w-0">{userLine}</span>
+              </Badge>
+
+              <div className="text-xs text-white/50 hidden md:block shrink-0">
+                {loading && !hasSession ? "Verificando sesión…" : hasSession ? "Sesión activa" : "Sin sesión"}
+              </div>
+            </div>
+          </motion.div>
+        </Container>
+      </div>
 
       {/* Mobile drawer */}
       <AnimatePresence>
@@ -206,6 +213,7 @@ export default function NavBar() {
               exit={{ opacity: 0 }}
               onClick={() => setMobileOpen(false)}
             />
+
             <motion.aside
               key="drawer"
               className="fixed right-0 top-0 z-[70] h-full w-[88vw] max-w-sm border-l border-white/10 bg-zinc-950"
@@ -214,6 +222,9 @@ export default function NavBar() {
               exit={{ x: 80, opacity: 0 }}
               transition={{ type: "spring", stiffness: 380, damping: 38 }}
             >
+              {/* safe-area arriba para que no quede pegado al notch */}
+              <div className="pt-[env(safe-area-inset-top)]" />
+
               <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
                 <div className="text-sm font-semibold">Menú</div>
                 <Button variant="ghost" onClick={() => setMobileOpen(false)} className="px-3" aria-label="Cerrar">
@@ -273,6 +284,6 @@ export default function NavBar() {
           </>
         )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }

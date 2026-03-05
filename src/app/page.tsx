@@ -96,24 +96,22 @@ function shortEmail(email?: string | null) {
   return u.length > 16 ? `${u.slice(0, 8)}…@${d}` : email;
 }
 
+/** Badge seguro: no rompe layout (y permite truncar) */
 function MiniBadge({ children, title }: { children: React.ReactNode; title?: string }) {
-  // ✅ clave: no permitir que un Badge rompa el ancho de la pantalla
   return (
-    <div className="max-w-full min-w-0">
-      <Badge
-        title={title}
-        className="max-w-full min-w-0 truncate whitespace-nowrap"
-      >
-        {children}
-      </Badge>
-    </div>
+    <Badge
+      title={title}
+      className="max-w-full min-w-0 truncate whitespace-nowrap"
+    >
+      {children}
+    </Badge>
   );
 }
 
 /**
- * ✅ QuickAction responsive:
- * - En móvil: apila (texto arriba + acciones abajo)
- * - Evita overflow con min-w-0 y truncate
+ * QuickAction responsive:
+ * - En móvil: se apila (izq arriba, acciones abajo)
+ * - Evita overflow con min-w-0/max-w-full/truncate
  */
 function QuickAction({
   href,
@@ -149,8 +147,8 @@ function QuickAction({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 sm:justify-start min-w-0">
-          <div className="min-w-0 max-w-full">{rightNode}</div>
+        <div className="flex items-center justify-end gap-2 min-w-0">
+          <div className="min-w-0 max-w-[78%] sm:max-w-none">{rightNode}</div>
           <ArrowRight size={18} className="opacity-60 shrink-0" />
         </div>
       </div>
@@ -216,7 +214,6 @@ export default function Home() {
         .single();
 
       if (!mounted) return;
-
       if (pErr) setProfile(null);
       else setProfile((p ?? null) as Profile);
 
@@ -228,7 +225,6 @@ export default function Home() {
         .limit(180);
 
       if (!mounted) return;
-
       if (rErr) setReports([]);
       else setReports((rRows ?? []) as ReportRow[]);
 
@@ -385,8 +381,19 @@ export default function Home() {
 
   return (
     <Container>
-      {/* ✅ Anti-overflow: evita “corte” lateral por contenido ancho */}
+      {/* 🔒 Blindaje anti “corte”/overflow horizontal */}
       <div className="overflow-x-hidden">
+        {/* Header */}
+        <div className="mb-6 flex items-center gap-4">
+          <div className="h-14 w-14 rounded-3xl bg-white/5 border border-white/10 grid place-items-center text-lg font-semibold shrink-0">
+            MA
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight truncate">Ministerio Águilas</h1>
+            <p className="text-sm text-white/70 truncate">Casa de Dios Cruzada Cristiana</p>
+          </div>
+        </div>
+
         <PageFade>
           {loading ? (
             <div className="grid gap-6 md:grid-cols-2">
@@ -435,14 +442,14 @@ export default function Home() {
 
                             {hasTodayReport ? (
                               <MiniBadge title="Ya registraste tu reporte de hoy">
-                                <span className="inline-flex items-center gap-1.5">
-                                  <CheckCircle2 size={12} className="opacity-80" /> Hecho
+                                <span className="inline-flex items-center gap-1.5 min-w-0">
+                                  <CheckCircle2 size={12} className="opacity-80 shrink-0" /> Hecho
                                 </span>
                               </MiniBadge>
                             ) : (
                               <MiniBadge title="Te falta registrar el reporte de hoy">
-                                <span className="inline-flex items-center gap-1.5">
-                                  <AlertCircle size={12} className="opacity-80" /> Pendiente
+                                <span className="inline-flex items-center gap-1.5 min-w-0">
+                                  <AlertCircle size={12} className="opacity-80 shrink-0" /> Pendiente
                                 </span>
                               </MiniBadge>
                             )}
@@ -454,30 +461,30 @@ export default function Home() {
                               : "Aún no has registrado tu reporte de hoy. Toma 30 segundos y suma a tu racha 🔥"}
                           </div>
 
-                          {/* ✅ scroll horizontal SIN -mx (evita overflow del body) */}
-                          <div className="mt-3 flex gap-2 overflow-x-auto pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                            <MiniBadge>
-                              <span className="inline-flex items-center gap-1.5">
-                                <Flame size={12} className="opacity-80" />
+                          {/* ✅ Sin -mx para evitar overflow */}
+                          <div className="mt-3 flex gap-2 overflow-x-auto max-w-full pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <MiniBadge title="Racha">
+                              <span className="inline-flex items-center gap-1.5 min-w-0">
+                                <Flame size={12} className="opacity-80 shrink-0" />
                                 <span className="text-white/80">Racha:</span>
                                 <span className="font-semibold text-white">{streakDays}</span>
                                 <span className="text-white/60">día(s)</span>
                               </span>
                             </MiniBadge>
 
-                            <MiniBadge>
-                              <span className="inline-flex items-center gap-1.5">
+                            <MiniBadge title="Totales de la semana">
+                              <span className="inline-flex items-center gap-1.5 min-w-0">
                                 <span className="text-white/80">Semana:</span>
-                                <span className="font-semibold text-white">
+                                <span className="font-semibold text-white whitespace-nowrap">
                                   {formatearCapitulos(weekTotals.bible)} cap · {formatearMinutos(weekTotals.prayer)}
                                 </span>
                               </span>
                             </MiniBadge>
 
                             {typeof rankPosWeek === "number" ? (
-                              <MiniBadge>
-                                <span className="inline-flex items-center gap-1.5">
-                                  <Trophy size={12} className="opacity-80" />
+                              <MiniBadge title="Tu puesto semanal">
+                                <span className="inline-flex items-center gap-1.5 min-w-0">
+                                  <Trophy size={12} className="opacity-80 shrink-0" />
                                   <span className="text-white/80">Puesto:</span>
                                   <span className="font-semibold text-white">#{rankPosWeek}</span>
                                 </span>
@@ -498,7 +505,7 @@ export default function Home() {
                         icon={<ClipboardList size={18} className="opacity-85" />}
                         rightNode={
                           <MiniBadge title={today}>
-                            <span className="inline-flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1.5 min-w-0">
                               {hasTodayReport ? "✅" : "⏳"} <span className="truncate">{today}</span>
                             </span>
                           </MiniBadge>
@@ -512,7 +519,7 @@ export default function Home() {
                         icon={<BarChart3 size={18} className="opacity-85" />}
                         rightNode={
                           <MiniBadge title="Reportes de la semana">
-                            <span className="inline-flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1.5 min-w-0">
                               <span className="text-white/75">Reportes:</span>
                               <span className="font-semibold text-white">{weekTotals.count}</span>
                             </span>
@@ -528,7 +535,7 @@ export default function Home() {
                         rightNode={
                           typeof rankPosWeek === "number" ? (
                             <MiniBadge title="Tu puesto semanal">
-                              <span className="inline-flex items-center gap-1.5">
+                              <span className="inline-flex items-center gap-1.5 min-w-0">
                                 <span className="text-white/75">Tu puesto:</span>
                                 <span className="font-semibold text-white">#{rankPosWeek}</span>
                               </span>
@@ -592,27 +599,36 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <Button type="button" onClick={signInGoogle} disabled={busy} className="w-full justify-center py-3 text-base">
+                    <Button
+                      type="button"
+                      onClick={signInGoogle}
+                      disabled={busy}
+                      className="w-full justify-center py-3 text-base"
+                    >
                       {busy ? "Conectando…" : "Entrar con Google"}
                       <ArrowRight size={18} />
                     </Button>
 
-                    {msg && <p className={msg.startsWith("✅") ? "text-sm text-green-300" : "text-sm text-red-300"}>{msg}</p>}
+                    {msg && (
+                      <p className={msg.startsWith("✅") ? "text-sm text-green-300" : "text-sm text-red-300"}>
+                        {msg}
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div className="mt-5 grid gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4 min-w-0">
                       <div className="text-xs text-white/60">Sesión</div>
                       <div className="mt-1 text-sm text-white/85 font-medium truncate">{shortEmail(sessionEmail)}</div>
                     </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4 min-w-0">
                       <div className="text-xs text-white/60">Semana (vs anterior)</div>
 
-                      {/* ✅ scroll horizontal SIN -mx (evita overflow del body) */}
-                      <div className="mt-2 flex gap-2 overflow-x-auto pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      {/* ✅ Sin -mx para no romper ancho */}
+                      <div className="mt-2 flex gap-2 overflow-x-auto max-w-full pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         <MiniBadge title="Capítulos">
-                          <span className="inline-flex items-center gap-2">
+                          <span className="inline-flex items-center gap-2 min-w-0">
                             <span className="text-white/70">Cap:</span>
                             <span className="font-semibold text-white">{formatearCapitulos(weekTotals.bible)}</span>
                             <span className={weekDelta.bible >= 0 ? "text-emerald-300" : "text-rose-300"}>
@@ -622,9 +638,9 @@ export default function Home() {
                         </MiniBadge>
 
                         <MiniBadge title="Oración">
-                          <span className="inline-flex items-center gap-2">
+                          <span className="inline-flex items-center gap-2 min-w-0">
                             <span className="text-white/70">Oración:</span>
-                            <span className="font-semibold text-white">{formatearMinutos(weekTotals.prayer)}</span>
+                            <span className="font-semibold text-white whitespace-nowrap">{formatearMinutos(weekTotals.prayer)}</span>
                             <span className={weekDelta.prayer >= 0 ? "text-emerald-300" : "text-rose-300"}>
                               {weekDelta.prayer >= 0 ? `+${weekDelta.prayer}m` : `${weekDelta.prayer}m`}
                             </span>
@@ -632,7 +648,7 @@ export default function Home() {
                         </MiniBadge>
 
                         <MiniBadge title="Reportes">
-                          <span className="inline-flex items-center gap-2">
+                          <span className="inline-flex items-center gap-2 min-w-0">
                             <span className="text-white/70">Reportes:</span>
                             <span className="font-semibold text-white">{weekTotals.count}</span>
                             <span className={weekDelta.count >= 0 ? "text-emerald-300" : "text-rose-300"}>

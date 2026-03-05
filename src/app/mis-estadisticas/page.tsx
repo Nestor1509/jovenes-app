@@ -636,39 +636,48 @@ export default function MisEstadisticasPage() {
           </div>
 
           {/* Trend */}
-          <div className="mt-2 grid grid-cols-1 gap-4">
-            <ChartCard
-              title={trendMode === "daily" ? "Tendencia (día a día)" : "Tendencia (mes a mes)"}
-              subtitle={
-                trendMode === "daily"
-                  ? period === "week"
-                    ? "Tu progreso durante la semana"
-                    : "Tu progreso en los últimos 30 días"
-                  : "Capítulos y oración acumulados por mes"
-              }
-            >
-              {!hasTrendData ? (
-                <EmptyState
-                  title="Aún no hay reportes en este rango"
-                  description="Registra tu reporte y aquí verás tu progreso de forma clara."
-                />
-              ) : (
-                <TrendLine data={trendData} />
-              )}
+<div className="mt-2 grid grid-cols-1 gap-4">
+  <Card className="bg-black/20 border border-white/10 p-4 rounded-3xl">
+    {/* Header */}
+    <div>
+      <div className="text-sm font-semibold">
+        {trendMode === "daily" ? "Tendencia (día a día)" : "Tendencia (mes a mes)"}
+      </div>
+      <div className="text-[12px] text-white/55 mt-1">
+        {trendMode === "daily"
+          ? period === "week"
+            ? "Tu progreso durante la semana"
+            : "Tu progreso en los últimos 30 días"
+          : "Capítulos y oración acumulados por mes"}
+      </div>
+    </div>
 
-              <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
-                <div className="text-[12px] text-white/55">
-                  Consejo: aunque un día sea poco, la constancia es lo que más suma.
-                </div>
-                <Link href="/reporte">
-                  <Button className="bg-white/10 text-white border border-white/10 hover:bg-white/15">
-                    Registrar reporte de hoy
-                  </Button>
-                </Link>
-              </div>
-            </ChartCard>
-          </div>
+    {/* Chart / Empty */}
+    <div className="mt-4 min-h-[260px]">
+      {!hasTrendData ? (
+        <EmptyState
+          title="Aún no hay reportes en este rango"
+          description="Registra tu reporte y aquí verás tu progreso de forma clara."
+        />
+      ) : (
+        <TrendLine data={trendData} height={260} />
+      )}
+    </div>
 
+    {/* Footer (siempre dentro del contenedor) */}
+    <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+      <div className="text-[12px] text-white/55">
+        Consejo: aunque un día sea poco, la constancia es lo que más suma.
+      </div>
+
+      <Link href="/reporte" className="w-full sm:w-auto">
+        <Button className="bg-white/10 text-white border border-white/10 hover:bg-white/15 w-full sm:w-auto">
+          Registrar reporte de hoy
+        </Button>
+      </Link>
+    </div>
+  </Card>
+</div>
           {/* Admin CTA */}
           {rol === "admin" && (
             <Card className="border-aguila-500/20 bg-aguila-500/10">

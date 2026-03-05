@@ -146,10 +146,14 @@ function QuickAction({
         </div>
 
         {/* ✅ capado real del rightNode en móvil */}
-        <div className="flex items-center justify-end gap-2 min-w-0">
-          <div className="min-w-0 max-w-[78%] sm:max-w-none">{rightNode}</div>
-          <ArrowRight size={18} className="opacity-60 shrink-0" />
-        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto min-w-0 sm:justify-end">
+  {/* rightNode ocupa el espacio disponible y SI puede truncar */}
+  <div className="flex-1 min-w-0 sm:flex-none sm:min-w-[unset] sm:max-w-none">
+    {rightNode}
+  </div>
+
+  <ArrowRight size={18} className="opacity-60 shrink-0" />
+</div>
       </div>
     </div>
   );

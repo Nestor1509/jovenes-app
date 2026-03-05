@@ -142,20 +142,28 @@ function QuickAction({
 
   const content = (
     <div className={cls} aria-disabled={disabled}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between min-w-0">
-        <div className="flex items-center gap-3 min-w-0 w-full sm:w-auto">
+      <div className="flex items-center justify-between gap-3 min-w-0">
+        
+        {/* IZQUIERDA */}
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/5 grid place-items-center shrink-0">
             {icon}
           </div>
+
           <div className="min-w-0">
             <div className="font-medium text-white/90 truncate">{title}</div>
-            {subtitle ? <div className="text-[12px] text-white/55 truncate">{subtitle}</div> : null}
+
+            {subtitle && (
+              <div className="text-[12px] text-white/55 truncate">
+                {subtitle}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* ✅ FIX MÓVIL: rightNode ya no fuerza overflow / ancho */}
-        <div className="flex items-center gap-2 w-full min-w-0 justify-between sm:justify-end sm:w-auto">
-          <div className="min-w-0 max-w-full flex-1 sm:flex-none">{rightNode}</div>
+        {/* DERECHA */}
+        <div className="flex items-center gap-2 shrink-0">
+          {rightNode}
           <ArrowRight size={18} className="opacity-60 shrink-0" />
         </div>
       </div>

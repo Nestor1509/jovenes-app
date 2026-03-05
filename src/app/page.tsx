@@ -1,3 +1,4 @@
+// src/app/page.tsx
 "use client";
 
 import Link from "next/link";
@@ -96,10 +97,10 @@ function shortEmail(email?: string | null) {
   return u.length > 16 ? `${u.slice(0, 8)}…@${d}` : email;
 }
 
-/** Badge seguro (no empuja layout) */
+/** Badge seguro: no empuja layout y en chips NO se comprime */
 function MiniBadge({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
-    <Badge title={title} className="min-w-0 max-w-full truncate">
+    <Badge title={title} className="shrink-0 min-w-0 max-w-full truncate">
       {children}
     </Badge>
   );
@@ -108,7 +109,7 @@ function MiniBadge({ children, title }: { children: React.ReactNode; title?: str
 /**
  * QuickAction:
  * - Mobile-first (apilado)
- * - No overflow: min-w-0 + truncate + rightNode capado
+ * - NO overflow: min-w-0 + truncate + rightNode capado
  */
 function QuickAction({
   href,
@@ -144,8 +145,9 @@ function QuickAction({
           </div>
         </div>
 
+        {/* ✅ capado real del rightNode en móvil */}
         <div className="flex items-center justify-end gap-2 min-w-0">
-          <div className="min-w-0 max-w-full">{rightNode}</div>
+          <div className="min-w-0 max-w-[78%] sm:max-w-none">{rightNode}</div>
           <ArrowRight size={18} className="opacity-60 shrink-0" />
         </div>
       </div>
@@ -178,7 +180,7 @@ export default function Home() {
 
   const hasSession = !!sessionEmail && !!userId;
 
-  // ✅ Bootstrap estable: acepta session si viene del listener, evita doble getSession
+  // ✅ Bootstrap estable (con override del listener)
   useEffect(() => {
     let mounted = true;
 
@@ -204,7 +206,6 @@ export default function Home() {
         return;
       }
 
-      // Perfil + reports en paralelo
       const [pRes, rRes] = await Promise.all([
         supabase.from("profiles").select("name, role, group_id").eq("id", uid).single(),
         supabase
@@ -363,7 +364,6 @@ export default function Home() {
   const primaryCTA = (
     <Link href="/reporte" className="w-full">
       <Button
-        type={hasTodayReport ? "button" : "button"}
         className={
           hasTodayReport
             ? "w-full justify-center py-3 text-base bg-white/10 text-white border border-white/10 hover:bg-white/15"
@@ -379,21 +379,20 @@ export default function Home() {
 
   return (
     <Container className="pb-10">
-      {/* ✅ nada de overflow-x-hidden aquí: arreglamos desde layout/clases */}
-      {/* Header */}
-      <div className="mb-6 flex items-center gap-4">
+      {/* ✅ No duplicar header del NavBar en móvil */}
+      <div className="hidden md:flex mb-6 items-center gap-4">
         <div className="h-14 w-14 rounded-3xl bg-white/5 border border-white/10 grid place-items-center text-lg font-semibold shrink-0">
           MA
         </div>
         <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight truncate">Ministerio Águilas</h1>
-          <p className="text-sm text-white/70 truncate">Casa de Dios Cruzada Cristiana</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Ministerio Águilas</h1>
+          <p className="text-sm text-white/70">Casa de Dios Cruzada Cristiana</p>
         </div>
       </div>
 
       <PageFade>
         {loading ? (
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
             <Card>
               <Skeleton className="h-7 w-40" />
               <Skeleton className="mt-2 h-4 w-72" />
@@ -411,18 +410,19 @@ export default function Home() {
             </Card>
           </div>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 items-start">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-2 items-start">
             {/* LEFT */}
-            <Card className="relative overflow-hidden">
-              <div className="absolute -top-24 -right-24 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-              <div className="absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
+            <Card className="relative">
+              {/* ✅ NO overflow-hidden: no cortar glow */}
+              <div className="absolute -top-24 -right-24 h-56 w-56 rounded-full bg-white/10 blur-2xl pointer-events-none" />
+              <div className="absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-white/10 blur-2xl pointer-events-none" />
 
               <div className="flex items-center gap-2 min-w-0">
                 <Sparkles size={18} className="opacity-80 shrink-0" />
                 <Title className="truncate">{hasSession ? `Hola, ${displayName}` : "Bienvenido"}</Title>
               </div>
 
-              <Subtitle className="break-words">
+              <Subtitle>
                 {hasSession
                   ? `Tu panel rápido — ${rolePretty}${profile?.group_id ? " · Grupo activo" : ""}`
                   : "Lleva un registro sencillo de tu lectura bíblica y tu tiempo de oración."}
@@ -461,8 +461,8 @@ export default function Home() {
                             : "Aún no has registrado tu reporte de hoy. Toma 30 segundos y suma a tu racha 🔥"}
                         </div>
 
-                        {/* ✅ Chips con scroll horizontal seguro */}
-                        <div className="mt-3 flex gap-2 overflow-x-auto max-w-full pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {/* ✅ Chips: no rompen layout, scroll suave */}
+                        <div className="mt-3 flex gap-2 overflow-x-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                           <MiniBadge title="Racha">
                             <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                               <Flame size={12} className="opacity-80 shrink-0" />
@@ -617,7 +617,8 @@ export default function Home() {
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-4 min-w-0">
                     <div className="text-xs text-white/60">Semana (vs anterior)</div>
 
-                    <div className="mt-2 flex gap-2 overflow-x-auto max-w-full pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {/* ✅ chips scroll sin -mx (no rompe ancho) */}
+                    <div className="mt-2 flex gap-2 overflow-x-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       <MiniBadge title="Capítulos">
                         <span className="inline-flex items-center gap-2 whitespace-nowrap">
                           <span className="text-white/70">Cap:</span>

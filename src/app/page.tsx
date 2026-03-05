@@ -153,8 +153,9 @@ function QuickAction({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto min-w-0 sm:justify-end">
-          <div className="flex-1 min-w-0 sm:flex-none sm:min-w-[unset] sm:max-w-none">{rightNode}</div>
+        {/* ✅ FIX MÓVIL: rightNode ya no fuerza overflow / ancho */}
+        <div className="flex items-center gap-2 w-full min-w-0 justify-between sm:justify-end sm:w-auto">
+          <div className="min-w-0 max-w-full flex-1 sm:flex-none">{rightNode}</div>
           <ArrowRight size={18} className="opacity-60 shrink-0" />
         </div>
       </div>
@@ -392,7 +393,8 @@ export default function Home() {
   );
 
   return (
-    <Container className="pb-10">
+    // ✅ Extra seguro para móvil: evita scroll horizontal accidental
+    <Container className="pb-10 overflow-x-clip">
       {/* ✅ No duplicar header del NavBar en móvil */}
       <div className="hidden md:flex mb-6 items-center gap-4">
         <div className="h-14 w-14 rounded-3xl bg-white/5 border border-white/10 grid place-items-center text-lg font-semibold shrink-0">
@@ -406,7 +408,7 @@ export default function Home() {
 
       <PageFade>
         {loading ? (
-          <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 min-w-0">
             <Card>
               <Skeleton className="h-7 w-40" />
               <Skeleton className="mt-2 h-4 w-72" />
@@ -424,7 +426,7 @@ export default function Home() {
             </Card>
           </div>
         ) : (
-          <div className="grid gap-4 sm:gap-6 md:grid-cols-2 items-start">
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 items-start min-w-0">
             {/* LEFT */}
             {/* ✅ FIX OVERFLOW DERECHA: recorta solo en X (glows no empujan viewport) */}
             <Card className="relative overflow-x-clip overflow-y-visible">
@@ -519,8 +521,9 @@ export default function Home() {
                       subtitle={hasTodayReport ? "Reporte de hoy registrado" : "Te falta el reporte de hoy"}
                       icon={<ClipboardList size={18} className="opacity-85" />}
                       rightNode={
-                        <MiniBadge title={today} className="w-full">
-                          <span className="inline-flex items-center gap-1.5 min-w-0 w-full">
+                        // ✅ FIX: NO w-full aquí (era la causa más común de overflow en móvil)
+                        <MiniBadge title={today} className="max-w-full">
+                          <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
                             <span className="shrink-0">{hasTodayReport ? "✅" : "⏳"}</span>
                             <span className="truncate min-w-0 block">{today}</span>
                           </span>
@@ -565,7 +568,9 @@ export default function Home() {
                     />
                   </div>
 
-                  <div className="mt-1 text-[12px] text-white/45">Tip: registra aunque sea poco. La constancia es lo que más suma.</div>
+                  <div className="mt-1 text-[12px] text-white/45">
+                    Tip: registra aunque sea poco. La constancia es lo que más suma.
+                  </div>
                 </div>
               ) : (
                 <div className="mt-5 grid gap-3 text-sm text-white/80">

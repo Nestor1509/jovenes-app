@@ -9,25 +9,16 @@ export const metadata = {
   description: "Casa de Dios Cruzada Cristiana — Reporte de lectura bíblica y oración",
 };
 
-// ✅ CLAVE para móvil (evita zoom raro + ancho incorrecto)
-export const viewport = {
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-};
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className="h-full w-full overflow-x-hidden">
-      <body className="min-h-screen w-full overflow-x-hidden bg-zinc-950 text-white antialiased">
+    <html lang="es">
+      <body>
         <AuthProvider>
           <OAuthUrlCleaner />
           <AuthKeepAlive />
-
-          {/* ✅ evita que algo con position/blur “se salga” */}
-          <div className="min-h-screen w-full overflow-x-hidden">
+          <div className="app-shell">
             <NavBar />
-            <main className="w-full overflow-x-hidden">{children}</main>
+            <main className="app-main">{children}</main>
           </div>
         </AuthProvider>
       </body>

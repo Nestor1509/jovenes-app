@@ -96,22 +96,19 @@ function shortEmail(email?: string | null) {
   return u.length > 16 ? `${u.slice(0, 8)}…@${d}` : email;
 }
 
-/** Badge seguro: no rompe layout (y permite truncar) */
+/** Badge seguro (no empuja layout) */
 function MiniBadge({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
-    <Badge
-      title={title}
-      className="max-w-full min-w-0 truncate whitespace-nowrap"
-    >
+    <Badge title={title} className="min-w-0 max-w-full truncate">
       {children}
     </Badge>
   );
 }
 
 /**
- * QuickAction responsive:
- * - En móvil: se apila (izq arriba, acciones abajo)
- * - Evita overflow con min-w-0/max-w-full/truncate
+ * QuickAction:
+ * - Mobile-first (apilado)
+ * - No overflow: min-w-0 + truncate + rightNode capado
  */
 function QuickAction({
   href,
@@ -148,7 +145,7 @@ function QuickAction({
         </div>
 
         <div className="flex items-center justify-end gap-2 min-w-0">
-          <div className="min-w-0 max-w-[78%] sm:max-w-none">{rightNode}</div>
+          <div className="min-w-0 max-w-full">{rightNode}</div>
           <ArrowRight size={18} className="opacity-60 shrink-0" />
         </div>
       </div>
@@ -174,30 +171,32 @@ export default function Home() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [reports, setReports] = useState<ReportRow[]>([]);
-
   const [rankPosWeek, setRankPosWeek] = useState<number | null>(null);
 
   const today = useMemo(() => hoyISO(), []);
   const weekStart = useMemo(() => inicioSemanaISO(today), [today]);
 
-  const hasSession = useMemo(() => !!sessionEmail && !!userId, [sessionEmail, userId]);
+  const hasSession = !!sessionEmail && !!userId;
 
+  // ✅ Bootstrap estable: acepta session si viene del listener, evita doble getSession
   useEffect(() => {
     let mounted = true;
 
-    async function bootstrap() {
+    async function bootstrap(sessionOverride?: any) {
       setLoading(true);
       setMsg("");
 
-      const { data } = await supabase.auth.getSession();
-      const sess = data.session;
+      const sess = sessionOverride ?? (await supabase.auth.getSession()).data.session;
 
       if (!mounted) return;
 
-      setSessionEmail(sess?.user?.email ?? null);
-      setUserId(sess?.user?.id ?? null);
+      const email = sess?.user?.email ?? null;
+      const uid = sess?.user?.id ?? null;
 
-      if (!sess?.user?.id) {
+      setSessionEmail(email);
+      setUserId(uid);
+
+      if (!uid) {
         setProfile(null);
         setReports([]);
         setRankPosWeek(null);
@@ -205,36 +204,28 @@ export default function Home() {
         return;
       }
 
-      const uid = sess.user.id;
-
-      const { data: p, error: pErr } = await supabase
-        .from("profiles")
-        .select("name, role, group_id")
-        .eq("id", uid)
-        .single();
-
-      if (!mounted) return;
-      if (pErr) setProfile(null);
-      else setProfile((p ?? null) as Profile);
-
-      const { data: rRows, error: rErr } = await supabase
-        .from("reports")
-        .select("report_date, bible_minutes, prayer_minutes")
-        .eq("user_id", uid)
-        .order("report_date", { ascending: false })
-        .limit(180);
+      // Perfil + reports en paralelo
+      const [pRes, rRes] = await Promise.all([
+        supabase.from("profiles").select("name, role, group_id").eq("id", uid).single(),
+        supabase
+          .from("reports")
+          .select("report_date, bible_minutes, prayer_minutes")
+          .eq("user_id", uid)
+          .order("report_date", { ascending: false })
+          .limit(180),
+      ]);
 
       if (!mounted) return;
-      if (rErr) setReports([]);
-      else setReports((rRows ?? []) as ReportRow[]);
 
+      setProfile((pRes.data ?? null) as Profile | null);
+      setReports((rRes.data ?? []) as ReportRow[]);
       setLoading(false);
     }
 
     bootstrap();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
-      bootstrap();
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      bootstrap(session);
     });
 
     return () => {
@@ -243,11 +234,12 @@ export default function Home() {
     };
   }, []);
 
+  // ---- derived ----
   const setDates = useMemo(() => new Set(reports.map((r) => r.report_date)), [reports]);
   const hasTodayReport = useMemo(() => setDates.has(today), [setDates, today]);
 
   const streakDays = useMemo(() => {
-    if (reports.length === 0) return 0;
+    if (!reports.length) return 0;
     let cur = today;
     let streak = 0;
     while (setDates.has(cur)) {
@@ -258,9 +250,10 @@ export default function Home() {
     return streak;
   }, [setDates, reports.length, today]);
 
-  const weekRows = useMemo(() => {
-    return reports.filter((r) => r.report_date >= weekStart && r.report_date <= today);
-  }, [reports, weekStart, today]);
+  const weekRows = useMemo(
+    () => reports.filter((r) => r.report_date >= weekStart && r.report_date <= today),
+    [reports, weekStart, today]
+  );
 
   const weekTotals = useMemo(() => {
     let bible = 0;
@@ -289,13 +282,14 @@ export default function Home() {
     return { bible, prayer, count };
   }, [reports, weekStart]);
 
-  const weekDelta = useMemo(() => {
-    return {
+  const weekDelta = useMemo(
+    () => ({
       bible: weekTotals.bible - prevWeekTotals.bible,
       prayer: weekTotals.prayer - prevWeekTotals.prayer,
       count: weekTotals.count - prevWeekTotals.count,
-    };
-  }, [weekTotals, prevWeekTotals]);
+    }),
+    [weekTotals, prevWeekTotals]
+  );
 
   const displayName = useMemo(() => {
     const n = profile?.name?.trim();
@@ -311,12 +305,15 @@ export default function Home() {
     return "Joven";
   }, [profile?.role]);
 
+  // Ranking semanal (solo si hay sesión y group)
   useEffect(() => {
     let mounted = true;
 
     async function loadRankPos() {
-      if (!userId) return;
-      if (!profile?.group_id) return;
+      if (!userId || !profile?.group_id) {
+        setRankPosWeek(null);
+        return;
+      }
 
       try {
         const { data, error } = await supabase.rpc("get_group_ranking", {
@@ -363,343 +360,336 @@ export default function Home() {
     }
   }
 
-  const primaryCTA = hasTodayReport ? (
+  const primaryCTA = (
     <Link href="/reporte" className="w-full">
-      <Button className="w-full justify-center py-3 text-base bg-white/10 text-white border border-white/10 hover:bg-white/15">
-        Editar reporte de hoy
-        <ArrowRight size={18} />
-      </Button>
-    </Link>
-  ) : (
-    <Link href="/reporte" className="w-full">
-      <Button type="button" className="w-full justify-center py-3 text-base" variant="primary">
-        Registrar reporte de hoy
+      <Button
+        type={hasTodayReport ? "button" : "button"}
+        className={
+          hasTodayReport
+            ? "w-full justify-center py-3 text-base bg-white/10 text-white border border-white/10 hover:bg-white/15"
+            : "w-full justify-center py-3 text-base"
+        }
+        variant={hasTodayReport ? "subtle" : "primary"}
+      >
+        {hasTodayReport ? "Editar reporte de hoy" : "Registrar reporte de hoy"}
         <ArrowRight size={18} />
       </Button>
     </Link>
   );
 
   return (
-    <Container>
-      {/* 🔒 Blindaje anti “corte”/overflow horizontal */}
-      <div className="overflow-x-hidden">
-        {/* Header */}
-        <div className="mb-6 flex items-center gap-4">
-          <div className="h-14 w-14 rounded-3xl bg-white/5 border border-white/10 grid place-items-center text-lg font-semibold shrink-0">
-            MA
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight truncate">Ministerio Águilas</h1>
-            <p className="text-sm text-white/70 truncate">Casa de Dios Cruzada Cristiana</p>
-          </div>
+    <Container className="pb-10">
+      {/* ✅ nada de overflow-x-hidden aquí: arreglamos desde layout/clases */}
+      {/* Header */}
+      <div className="mb-6 flex items-center gap-4">
+        <div className="h-14 w-14 rounded-3xl bg-white/5 border border-white/10 grid place-items-center text-lg font-semibold shrink-0">
+          MA
         </div>
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight truncate">Ministerio Águilas</h1>
+          <p className="text-sm text-white/70 truncate">Casa de Dios Cruzada Cristiana</p>
+        </div>
+      </div>
 
-        <PageFade>
-          {loading ? (
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <Skeleton className="h-7 w-40" />
-                <Skeleton className="mt-2 h-4 w-72" />
+      <PageFade>
+        {loading ? (
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <Skeleton className="h-7 w-40" />
+              <Skeleton className="mt-2 h-4 w-72" />
+              <div className="mt-5 grid gap-3">
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+              </div>
+            </Card>
+            <Card>
+              <Skeleton className="h-7 w-48" />
+              <Skeleton className="mt-2 h-4 w-72" />
+              <Skeleton className="mt-5 h-24 w-full" />
+              <Skeleton className="mt-3 h-12 w-full" />
+            </Card>
+          </div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 items-start">
+            {/* LEFT */}
+            <Card className="relative overflow-hidden">
+              <div className="absolute -top-24 -right-24 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
+              <div className="absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
+
+              <div className="flex items-center gap-2 min-w-0">
+                <Sparkles size={18} className="opacity-80 shrink-0" />
+                <Title className="truncate">{hasSession ? `Hola, ${displayName}` : "Bienvenido"}</Title>
+              </div>
+
+              <Subtitle className="break-words">
+                {hasSession
+                  ? `Tu panel rápido — ${rolePretty}${profile?.group_id ? " · Grupo activo" : ""}`
+                  : "Lleva un registro sencillo de tu lectura bíblica y tu tiempo de oración."}
+              </Subtitle>
+
+              {hasSession ? (
                 <div className="mt-5 grid gap-3">
-                  <Skeleton className="h-16 w-full" />
-                  <Skeleton className="h-16 w-full" />
-                  <Skeleton className="h-16 w-full" />
-                </div>
-              </Card>
-              <Card>
-                <Skeleton className="h-7 w-48" />
-                <Skeleton className="mt-2 h-4 w-72" />
-                <Skeleton className="mt-5 h-24 w-full" />
-                <Skeleton className="mt-3 h-12 w-full" />
-              </Card>
-            </div>
-          ) : (
-            <div className="grid gap-6 md:grid-cols-2 items-start">
-              {/* LEFT */}
-              <Card className="relative overflow-hidden">
-                <div className="absolute -top-24 -right-24 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
-                <div className="absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-white/10 blur-2xl" />
+                  {/* Acción de hoy */}
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <div className="flex flex-col gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <CalendarCheck2 size={16} className="opacity-80 shrink-0" />
+                          <div className="text-sm font-semibold">Acción de hoy</div>
 
-                <div className="flex items-center gap-2 min-w-0">
-                  <Sparkles size={18} className="opacity-80 shrink-0" />
-                  <Title className="truncate">{hasSession ? `Hola, ${displayName}` : "Bienvenido"}</Title>
-                </div>
-
-                <Subtitle className="break-words">
-                  {hasSession
-                    ? `Tu panel rápido — ${rolePretty}${profile?.group_id ? " · Grupo activo" : ""}`
-                    : "Lleva un registro sencillo de tu lectura bíblica y tu tiempo de oración."}
-                </Subtitle>
-
-                {hasSession ? (
-                  <div className="mt-5 grid gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                      <div className="flex flex-col gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <CalendarCheck2 size={16} className="opacity-80 shrink-0" />
-                            <div className="text-sm font-semibold">Acción de hoy</div>
-
-                            {hasTodayReport ? (
-                              <MiniBadge title="Ya registraste tu reporte de hoy">
-                                <span className="inline-flex items-center gap-1.5 min-w-0">
-                                  <CheckCircle2 size={12} className="opacity-80 shrink-0" /> Hecho
-                                </span>
-                              </MiniBadge>
-                            ) : (
-                              <MiniBadge title="Te falta registrar el reporte de hoy">
-                                <span className="inline-flex items-center gap-1.5 min-w-0">
-                                  <AlertCircle size={12} className="opacity-80 shrink-0" /> Pendiente
-                                </span>
-                              </MiniBadge>
-                            )}
-                          </div>
-
-                          <div className="mt-2 text-sm text-white/70">
-                            {hasTodayReport
-                              ? "¡Bien! Ya registraste tu reporte hoy. Si necesitas, puedes editarlo."
-                              : "Aún no has registrado tu reporte de hoy. Toma 30 segundos y suma a tu racha 🔥"}
-                          </div>
-
-                          {/* ✅ Sin -mx para evitar overflow */}
-                          <div className="mt-3 flex gap-2 overflow-x-auto max-w-full pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                            <MiniBadge title="Racha">
+                          {hasTodayReport ? (
+                            <MiniBadge title="Ya registraste tu reporte de hoy">
                               <span className="inline-flex items-center gap-1.5 min-w-0">
-                                <Flame size={12} className="opacity-80 shrink-0" />
-                                <span className="text-white/80">Racha:</span>
-                                <span className="font-semibold text-white">{streakDays}</span>
-                                <span className="text-white/60">día(s)</span>
-                              </span>
-                            </MiniBadge>
-
-                            <MiniBadge title="Totales de la semana">
-                              <span className="inline-flex items-center gap-1.5 min-w-0">
-                                <span className="text-white/80">Semana:</span>
-                                <span className="font-semibold text-white whitespace-nowrap">
-                                  {formatearCapitulos(weekTotals.bible)} cap · {formatearMinutos(weekTotals.prayer)}
-                                </span>
-                              </span>
-                            </MiniBadge>
-
-                            {typeof rankPosWeek === "number" ? (
-                              <MiniBadge title="Tu puesto semanal">
-                                <span className="inline-flex items-center gap-1.5 min-w-0">
-                                  <Trophy size={12} className="opacity-80 shrink-0" />
-                                  <span className="text-white/80">Puesto:</span>
-                                  <span className="font-semibold text-white">#{rankPosWeek}</span>
-                                </span>
-                              </MiniBadge>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <div className="w-full">{primaryCTA}</div>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-3">
-                      <QuickAction
-                        href="/reporte"
-                        title="Reporte diario"
-                        subtitle={hasTodayReport ? "Reporte de hoy registrado" : "Te falta el reporte de hoy"}
-                        icon={<ClipboardList size={18} className="opacity-85" />}
-                        rightNode={
-                          <MiniBadge title={today}>
-                            <span className="inline-flex items-center gap-1.5 min-w-0">
-                              {hasTodayReport ? "✅" : "⏳"} <span className="truncate">{today}</span>
-                            </span>
-                          </MiniBadge>
-                        }
-                      />
-
-                      <QuickAction
-                        href="/mis-estadisticas"
-                        title="Mis estadísticas"
-                        subtitle={`Semana desde ${weekStart}`}
-                        icon={<BarChart3 size={18} className="opacity-85" />}
-                        rightNode={
-                          <MiniBadge title="Reportes de la semana">
-                            <span className="inline-flex items-center gap-1.5 min-w-0">
-                              <span className="text-white/75">Reportes:</span>
-                              <span className="font-semibold text-white">{weekTotals.count}</span>
-                            </span>
-                          </MiniBadge>
-                        }
-                      />
-
-                      <QuickAction
-                        href="/ranking"
-                        title="Ranking del grupo"
-                        subtitle="Mira tu puesto y el top del grupo"
-                        icon={<Trophy size={18} className="opacity-85" />}
-                        rightNode={
-                          typeof rankPosWeek === "number" ? (
-                            <MiniBadge title="Tu puesto semanal">
-                              <span className="inline-flex items-center gap-1.5 min-w-0">
-                                <span className="text-white/75">Tu puesto:</span>
-                                <span className="font-semibold text-white">#{rankPosWeek}</span>
+                                <CheckCircle2 size={12} className="opacity-80 shrink-0" />
+                                <span className="truncate">Hecho</span>
                               </span>
                             </MiniBadge>
                           ) : (
-                            <MiniBadge title="Ranking semanal">
-                              <span className="text-white/70">Semana</span>
+                            <MiniBadge title="Te falta registrar el reporte de hoy">
+                              <span className="inline-flex items-center gap-1.5 min-w-0">
+                                <AlertCircle size={12} className="opacity-80 shrink-0" />
+                                <span className="truncate">Pendiente</span>
+                              </span>
                             </MiniBadge>
-                          )
-                        }
-                      />
-                    </div>
+                          )}
+                        </div>
 
-                    <div className="mt-1 text-[12px] text-white/45">
-                      Tip: registra aunque sea poco. La constancia es lo que más suma.
+                        <div className="mt-2 text-sm text-white/70">
+                          {hasTodayReport
+                            ? "¡Bien! Ya registraste tu reporte hoy. Si necesitas, puedes editarlo."
+                            : "Aún no has registrado tu reporte de hoy. Toma 30 segundos y suma a tu racha 🔥"}
+                        </div>
+
+                        {/* ✅ Chips con scroll horizontal seguro */}
+                        <div className="mt-3 flex gap-2 overflow-x-auto max-w-full pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          <MiniBadge title="Racha">
+                            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                              <Flame size={12} className="opacity-80 shrink-0" />
+                              <span className="text-white/80">Racha:</span>
+                              <span className="font-semibold text-white">{streakDays}</span>
+                              <span className="text-white/60">día(s)</span>
+                            </span>
+                          </MiniBadge>
+
+                          <MiniBadge title="Totales de la semana">
+                            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                              <span className="text-white/80">Semana:</span>
+                              <span className="font-semibold text-white">
+                                {formatearCapitulos(weekTotals.bible)} cap · {formatearMinutos(weekTotals.prayer)}
+                              </span>
+                            </span>
+                          </MiniBadge>
+
+                          {typeof rankPosWeek === "number" ? (
+                            <MiniBadge title="Tu puesto semanal">
+                              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                                <Trophy size={12} className="opacity-80 shrink-0" />
+                                <span className="text-white/80">Puesto:</span>
+                                <span className="font-semibold text-white">#{rankPosWeek}</span>
+                              </span>
+                            </MiniBadge>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="w-full">{primaryCTA}</div>
                     </div>
                   </div>
-                ) : (
-                  <div className="mt-5 grid gap-3 text-sm text-white/80">
+
+                  {/* Accesos rápidos */}
+                  <div className="grid gap-3">
                     <QuickAction
                       href="/reporte"
                       title="Reporte diario"
-                      subtitle="Registra tu lectura y oración cada día"
+                      subtitle={hasTodayReport ? "Reporte de hoy registrado" : "Te falta el reporte de hoy"}
                       icon={<ClipboardList size={18} className="opacity-85" />}
-                      disabled
+                      rightNode={
+                        <MiniBadge title={today}>
+                          <span className="inline-flex items-center gap-1.5 min-w-0">
+                            {hasTodayReport ? "✅" : "⏳"} <span className="truncate">{today}</span>
+                          </span>
+                        </MiniBadge>
+                      }
                     />
+
                     <QuickAction
                       href="/mis-estadisticas"
-                      title="Estadísticas personales"
-                      subtitle="Mira tu progreso y tendencia"
+                      title="Mis estadísticas"
+                      subtitle={`Semana desde ${weekStart}`}
                       icon={<BarChart3 size={18} className="opacity-85" />}
-                      disabled
+                      rightNode={
+                        <MiniBadge title="Reportes de la semana">
+                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                            <span className="text-white/75">Reportes:</span>
+                            <span className="font-semibold text-white">{weekTotals.count}</span>
+                          </span>
+                        </MiniBadge>
+                      }
                     />
+
                     <QuickAction
                       href="/ranking"
                       title="Ranking del grupo"
-                      subtitle="Comparte el avance con tu grupo"
+                      subtitle="Mira tu puesto y el top del grupo"
                       icon={<Trophy size={18} className="opacity-85" />}
-                      disabled
+                      rightNode={
+                        typeof rankPosWeek === "number" ? (
+                          <MiniBadge title="Tu puesto semanal">
+                            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                              <span className="text-white/75">Tu puesto:</span>
+                              <span className="font-semibold text-white">#{rankPosWeek}</span>
+                            </span>
+                          </MiniBadge>
+                        ) : (
+                          <MiniBadge title="Ranking semanal">
+                            <span className="text-white/70 whitespace-nowrap">Semana</span>
+                          </MiniBadge>
+                        )
+                      }
                     />
                   </div>
-                )}
-              </Card>
 
-              {/* RIGHT */}
-              <Card>
-                <Title>{hasSession ? "Resumen rápido" : "Iniciar sesión"}</Title>
-                <Subtitle>
-                  {hasSession ? "Lo esencial para hoy y tu progreso de la semana." : "Solo se permite iniciar sesión con Google."}
-                </Subtitle>
-
-                {!hasSession ? (
-                  <div className="mt-5 grid gap-4">
-                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/75">
-                      <div className="flex items-center gap-2">
-                        <ShieldCheck size={16} className="opacity-80" />
-                        <span className="font-medium text-white">Acceso seguro</span>
-                      </div>
-                      <div className="mt-1 text-xs text-white/60">
-                        Tu cuenta queda registrada automáticamente como <b>Joven</b>.
-                      </div>
-                    </div>
-
-                    <Button
-                      type="button"
-                      onClick={signInGoogle}
-                      disabled={busy}
-                      className="w-full justify-center py-3 text-base"
-                    >
-                      {busy ? "Conectando…" : "Entrar con Google"}
-                      <ArrowRight size={18} />
-                    </Button>
-
-                    {msg && (
-                      <p className={msg.startsWith("✅") ? "text-sm text-green-300" : "text-sm text-red-300"}>
-                        {msg}
-                      </p>
-                    )}
+                  <div className="mt-1 text-[12px] text-white/45">
+                    Tip: registra aunque sea poco. La constancia es lo que más suma.
                   </div>
-                ) : (
-                  <div className="mt-5 grid gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4 min-w-0">
-                      <div className="text-xs text-white/60">Sesión</div>
-                      <div className="mt-1 text-sm text-white/85 font-medium truncate">{shortEmail(sessionEmail)}</div>
+                </div>
+              ) : (
+                <div className="mt-5 grid gap-3 text-sm text-white/80">
+                  <QuickAction
+                    href="/reporte"
+                    title="Reporte diario"
+                    subtitle="Registra tu lectura y oración cada día"
+                    icon={<ClipboardList size={18} className="opacity-85" />}
+                    disabled
+                  />
+                  <QuickAction
+                    href="/mis-estadisticas"
+                    title="Estadísticas personales"
+                    subtitle="Mira tu progreso y tendencia"
+                    icon={<BarChart3 size={18} className="opacity-85" />}
+                    disabled
+                  />
+                  <QuickAction
+                    href="/ranking"
+                    title="Ranking del grupo"
+                    subtitle="Comparte el avance con tu grupo"
+                    icon={<Trophy size={18} className="opacity-85" />}
+                    disabled
+                  />
+                </div>
+              )}
+            </Card>
+
+            {/* RIGHT */}
+            <Card>
+              <Title>{hasSession ? "Resumen rápido" : "Iniciar sesión"}</Title>
+              <Subtitle>
+                {hasSession ? "Lo esencial para hoy y tu progreso de la semana." : "Solo se permite iniciar sesión con Google."}
+              </Subtitle>
+
+              {!hasSession ? (
+                <div className="mt-5 grid gap-4">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/75">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck size={16} className="opacity-80" />
+                      <span className="font-medium text-white">Acceso seguro</span>
                     </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-black/20 p-4 min-w-0">
-                      <div className="text-xs text-white/60">Semana (vs anterior)</div>
-
-                      {/* ✅ Sin -mx para no romper ancho */}
-                      <div className="mt-2 flex gap-2 overflow-x-auto max-w-full pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        <MiniBadge title="Capítulos">
-                          <span className="inline-flex items-center gap-2 min-w-0">
-                            <span className="text-white/70">Cap:</span>
-                            <span className="font-semibold text-white">{formatearCapitulos(weekTotals.bible)}</span>
-                            <span className={weekDelta.bible >= 0 ? "text-emerald-300" : "text-rose-300"}>
-                              {weekDelta.bible >= 0 ? `+${weekDelta.bible}` : `${weekDelta.bible}`}
-                            </span>
-                          </span>
-                        </MiniBadge>
-
-                        <MiniBadge title="Oración">
-                          <span className="inline-flex items-center gap-2 min-w-0">
-                            <span className="text-white/70">Oración:</span>
-                            <span className="font-semibold text-white whitespace-nowrap">{formatearMinutos(weekTotals.prayer)}</span>
-                            <span className={weekDelta.prayer >= 0 ? "text-emerald-300" : "text-rose-300"}>
-                              {weekDelta.prayer >= 0 ? `+${weekDelta.prayer}m` : `${weekDelta.prayer}m`}
-                            </span>
-                          </span>
-                        </MiniBadge>
-
-                        <MiniBadge title="Reportes">
-                          <span className="inline-flex items-center gap-2 min-w-0">
-                            <span className="text-white/70">Reportes:</span>
-                            <span className="font-semibold text-white">{weekTotals.count}</span>
-                            <span className={weekDelta.count >= 0 ? "text-emerald-300" : "text-rose-300"}>
-                              {weekDelta.count >= 0 ? `+${weekDelta.count}` : `${weekDelta.count}`}
-                            </span>
-                          </span>
-                        </MiniBadge>
-                      </div>
-
-                      <div className="mt-3 text-[12px] text-white/55">
-                        Tu racha actual es <span className="text-white/85 font-semibold">{streakDays}</span> día(s).
-                      </div>
-
-                      <div className="mt-3">
-                        {(() => {
-                          const daysActive = new Set(weekRows.map((r) => r.report_date)).size;
-                          const pct = clamp((daysActive / 7) * 100, 0, 100);
-                          return (
-                            <>
-                              <div className="flex items-center justify-between text-[12px] text-white/55">
-                                <span>Días activos</span>
-                                <span className="text-white/75">{daysActive}/7</span>
-                              </div>
-                              <div className="mt-2 h-2 w-full rounded-full bg-white/5 border border-white/10 overflow-hidden">
-                                <div className="h-full rounded-full bg-white/30" style={{ width: `${pct}%` }} />
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <Link href="/mis-estadisticas" className="block">
-                        <Button className="w-full bg-white/10 text-white border border-white/10 hover:bg-white/15">
-                          Ver estadísticas
-                        </Button>
-                      </Link>
-                      <Link href="/ranking" className="block">
-                        <Button className="w-full bg-white/10 text-white border border-white/10 hover:bg-white/15">
-                          Ver ranking
-                        </Button>
-                      </Link>
+                    <div className="mt-1 text-xs text-white/60">
+                      Tu cuenta queda registrada automáticamente como <b>Joven</b>.
                     </div>
                   </div>
-                )}
-              </Card>
-            </div>
-          )}
-        </PageFade>
-      </div>
+
+                  <Button type="button" onClick={signInGoogle} disabled={busy} className="w-full justify-center py-3 text-base">
+                    {busy ? "Conectando…" : "Entrar con Google"}
+                    <ArrowRight size={18} />
+                  </Button>
+
+                  {msg && <p className={msg.startsWith("✅") ? "text-sm text-green-300" : "text-sm text-red-300"}>{msg}</p>}
+                </div>
+              ) : (
+                <div className="mt-5 grid gap-3">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4 min-w-0">
+                    <div className="text-xs text-white/60">Sesión</div>
+                    <div className="mt-1 text-sm text-white/85 font-medium truncate">{shortEmail(sessionEmail)}</div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4 min-w-0">
+                    <div className="text-xs text-white/60">Semana (vs anterior)</div>
+
+                    <div className="mt-2 flex gap-2 overflow-x-auto max-w-full pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      <MiniBadge title="Capítulos">
+                        <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                          <span className="text-white/70">Cap:</span>
+                          <span className="font-semibold text-white">{formatearCapitulos(weekTotals.bible)}</span>
+                          <span className={weekDelta.bible >= 0 ? "text-emerald-300" : "text-rose-300"}>
+                            {weekDelta.bible >= 0 ? `+${weekDelta.bible}` : `${weekDelta.bible}`}
+                          </span>
+                        </span>
+                      </MiniBadge>
+
+                      <MiniBadge title="Oración">
+                        <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                          <span className="text-white/70">Oración:</span>
+                          <span className="font-semibold text-white">{formatearMinutos(weekTotals.prayer)}</span>
+                          <span className={weekDelta.prayer >= 0 ? "text-emerald-300" : "text-rose-300"}>
+                            {weekDelta.prayer >= 0 ? `+${weekDelta.prayer}m` : `${weekDelta.prayer}m`}
+                          </span>
+                        </span>
+                      </MiniBadge>
+
+                      <MiniBadge title="Reportes">
+                        <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                          <span className="text-white/70">Reportes:</span>
+                          <span className="font-semibold text-white">{weekTotals.count}</span>
+                          <span className={weekDelta.count >= 0 ? "text-emerald-300" : "text-rose-300"}>
+                            {weekDelta.count >= 0 ? `+${weekDelta.count}` : `${weekDelta.count}`}
+                          </span>
+                        </span>
+                      </MiniBadge>
+                    </div>
+
+                    <div className="mt-3 text-[12px] text-white/55">
+                      Tu racha actual es <span className="text-white/85 font-semibold">{streakDays}</span> día(s).
+                    </div>
+
+                    <div className="mt-3">
+                      {(() => {
+                        const daysActive = new Set(weekRows.map((r) => r.report_date)).size;
+                        const pct = clamp((daysActive / 7) * 100, 0, 100);
+                        return (
+                          <>
+                            <div className="flex items-center justify-between text-[12px] text-white/55">
+                              <span>Días activos</span>
+                              <span className="text-white/75">{daysActive}/7</span>
+                            </div>
+                            <div className="mt-2 h-2 w-full rounded-full bg-white/5 border border-white/10 overflow-hidden">
+                              <div className="h-full rounded-full bg-white/30" style={{ width: `${pct}%` }} />
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Link href="/mis-estadisticas" className="block">
+                      <Button className="w-full bg-white/10 text-white border border-white/10 hover:bg-white/15">
+                        Ver estadísticas
+                      </Button>
+                    </Link>
+                    <Link href="/ranking" className="block">
+                      <Button className="w-full bg-white/10 text-white border border-white/10 hover:bg-white/15">
+                        Ver ranking
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+      </PageFade>
     </Container>
   );
 }

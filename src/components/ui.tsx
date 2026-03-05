@@ -2,16 +2,13 @@
 
 import { cn } from "@/lib/utils";
 import { HTMLMotionProps, motion } from "framer-motion";
-
 import React from "react";
 
 type Props = React.HTMLAttributes<HTMLDivElement>;
 type PageFadeProps = HTMLMotionProps<"div">;
 
 export function Container({ className, ...props }: Props) {
-  return (
-    <div className={cn("mx-auto w-full max-w-6xl px-4", className)} {...props} />
-  );
+  return <div className={cn("mx-auto w-full max-w-6xl px-4", className)} {...props} />;
 }
 
 export function Card({
@@ -20,6 +17,7 @@ export function Card({
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & { className?: string; children: React.ReactNode }) {
   const { onDrag, onDragStart, onDragEnd, ...safeProps } = props as any;
+
   return (
     <motion.div
       whileHover={{ y: -2 }}
@@ -34,7 +32,6 @@ export function Card({
     </motion.div>
   );
 }
-
 
 export function Title({ className, children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
@@ -59,12 +56,18 @@ export function Button({
   variant = "primary",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: BtnVariant }) {
+  // ✅ FIX: había un typo enorme en la clase (ring-offset-0-semibold)
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60 focus-visible:ring-offset-0-semibold transition focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-60 disabled:cursor-not-allowed";
+    "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold outline-none " +
+    "transition focus-visible:ring-2 focus-visible:ring-amber-400/60 focus-visible:ring-offset-0 " +
+    "disabled:opacity-60 disabled:cursor-not-allowed";
+
   const styles: Record<BtnVariant, string> = {
     primary: "btn-primary text-zinc-950",
     ghost: "btn-ghost text-white",
-    subtle: "rounded-xl px-4 py-2 text-sm font outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60 focus-visible:ring-offset-0-semibold bg-white/5 border border-white/10 hover:bg-white/10",
+    subtle:
+      "bg-white/5 border border-white/10 hover:bg-white/10 " +
+      "focus-visible:ring-2 focus-visible:ring-amber-400/60 focus-visible:ring-offset-0",
   };
 
   const { onDrag, onDragStart, onDragEnd, ...safeProps } = props as any;
@@ -78,7 +81,6 @@ export function Button({
     />
   );
 }
-
 
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn("input", className)} {...props} />;
@@ -107,7 +109,6 @@ export function PageFade({ className, children, ...props }: PageFadeProps) {
   );
 }
 
-
 export function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="glass rounded-2xl p-4 shadow-soft">
@@ -117,24 +118,41 @@ export function Stat({ label, value }: { label: string; value: string | number }
   );
 }
 
-export function Badge({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <span className={cn("inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/80", className)}>{children}</span>;
+/**
+ * ✅ Badge “a prueba de móvil”:
+ * - Evita overflow y empujes del layout
+ * - Permite truncar texto si el contenedor es pequeño
+ */
+export function Badge({
+  children,
+  className,
+  title,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  title?: string;
+}) {
+  return (
+    <span
+      title={title}
+      className={cn(
+        "inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/80",
+        // ✅ clave para que NO reviente el layout:
+        "min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap",
+        className
+      )}
+    >
+      {children}
+    </span>
+  );
 }
 
 export function Divider({ className }: { className?: string }) {
   return <div className={cn("h-px w-full bg-white/10", className)} />;
 }
 
-
 export function Skeleton({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn(
-        "animate-pulse rounded-2xl bg-white/10",
-        className
-      )}
-    />
-  );
+  return <div className={cn("animate-pulse rounded-2xl bg-white/10", className)} />;
 }
 
 export function EmptyState({

@@ -134,8 +134,8 @@ function QuickAction({
 
   const content = (
     <div className={cls} aria-disabled={disabled}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between min-w-0">
+        <div className="flex items-center gap-3 min-w-0 w-full sm:w-auto">
           <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/5 grid place-items-center shrink-0">
             {icon}
           </div>

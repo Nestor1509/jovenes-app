@@ -16,15 +16,64 @@ function fmtChapters(v: number) {
   return String(n);
 }
 
+function isISODateDay(s: string) {
+  // YYYY-MM-DD
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(s));
+}
+
+function isISODateMonth(s: string) {
+  // YYYY-MM
+  return /^\d{4}-\d{2}$/.test(String(s));
+}
+
+function safeParseISOToDate(label: string) {
+  // label puede ser YYYY-MM-DD o YYYY-MM
+  if (isISODateDay(label)) return new Date(label + "T00:00:00");
+  if (isISODateMonth(label)) return new Date(label + "-01T00:00:00");
+  // fallback (no debería pasar)
+  return new Date(label);
+}
+
+function fmtTickLabel(label: string) {
+  if (isISODateDay(label)) {
+    const dd = label.slice(8, 10);
+    const mm = label.slice(5, 7);
+    return `${dd}/${mm}`;
+  }
+  if (isISODateMonth(label)) {
+    const d = safeParseISOToDate(label);
+    // "Mar 26"
+    const month = d.toLocaleDateString("es-MX", { month: "short" }); // ej: "mar"
+    const yy = String(d.getFullYear()).slice(2);
+    return `${month.charAt(0).toUpperCase()}${month.slice(1)} ${yy}`;
+  }
+  return String(label);
+}
+
+function fmtTooltipLabel(label: string) {
+  if (isISODateDay(label)) {
+    const d = safeParseISOToDate(label);
+    return d.toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+  if (isISODateMonth(label)) {
+    const d = safeParseISOToDate(label);
+    return d.toLocaleDateString("es-MX", { month: "long", year: "numeric" });
+  }
+  return String(label);
+}
+
 export function TrendLine({
   data,
   height = 240,
 }: {
-  // Nota: el resto de la app usa llaves en español (lectura/oracion).
   // lectura = capítulos (acumulado), oracion = minutos (acumulado)
   data: Array<{ label: string; lectura: number; oracion: number }>;
   height?: number;
 }) {
+  // Para controlar cuántos ticks mostrar en diario vs mensual (sin saturar)
+  const firstLabel = data?.[0]?.label ?? "";
+  const isDaily = isISODateDay(firstLabel);
+
   return (
     <div style={{ width: "100%", height }}>
       <ResponsiveContainer width="100%" height="100%" minHeight={height}>
@@ -41,6 +90,7 @@ export function TrendLine({
           </defs>
 
           <CartesianGrid strokeDasharray="3 3" opacity={0.12} vertical={false} />
+
           <XAxis
             dataKey="label"
             tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 12 }}
@@ -49,6 +99,10 @@ export function TrendLine({
             interval="preserveStartEnd"
             minTickGap={12}
             height={36}
+            tickFormatter={(v) => fmtTickLabel(String(v))}
+            // En diario, si hay 30 puntos, Recharts a veces satura: permitimos omitir ticks
+            // (pero conserva inicio/fin por preserveStartEnd)
+            // Si quisieras aún menos, podríamos usar interval={isDaily ? "preserveStartEnd" : 0}
           />
 
           {/* Izquierda: capítulos */}
@@ -81,6 +135,7 @@ export function TrendLine({
               color: "white",
             }}
             labelStyle={{ color: "rgba(255,255,255,0.85)" }}
+            labelFormatter={(label) => fmtTooltipLabel(String(label))}
             formatter={(value: any, name) => {
               if (name === "lectura" || name === "Capítulos") return [fmtChapters(Number(value)), "Capítulos"];
               return [fmtMinutes(Number(value)), "Oración"];
